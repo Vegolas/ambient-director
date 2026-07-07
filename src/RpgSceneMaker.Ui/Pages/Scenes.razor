@@ -1,0 +1,99 @@
+@page "/"
+@implements IDisposable
+@inject ApiClient Api
+@inject UiState Ui
+
+<PageTitle>Scene Maker — Scenes</PageTitle>
+
+<h2 class="rune">Scenes</h2>
+
+@if (_scenes is null)
+{
+    <p class="empty-note">Consulting the tome…</p>
+}
+else if (_scenes.Count == 0)
+{
+    <p class="empty-note">No scenes yet — add them to <code>scenes.json</code> next to the API.</p>
+}
+else
+{
+    <div class="scene-grid">
+        @foreach (var (scene, index) in _scenes.Select((s, i) => (s, i)))
+        {
+            var (emoji, label) = SplitName(scene.Name, scene.Id);
+            <button class="scene-card @(scene.Id == _activeId ? "active" : "") @(_busyId == scene.Id ? "busy" : "")"
+                    style="animation-delay:@(index * 55)ms; --sc:@(scene.Light?.Color ?? "transparent")"
+                    @onclick="() => Activate(scene.Id)">
+                <span class="scene-swatch"></span>
+                <span class="scene-emoji">@emoji</span>
+                <span class="scene-name">@label</span>
+            </button>
+        }
+    </div>
+}
+
+@code {
+    private const string FallbackEmoji = "🎲";
+
+    private List<SceneDto>? _scenes;
+    private string? _activeId;
+    private string? _busyId;
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _timer = new Timer(_ => _ = InvokeAsync(PollActiveAsync), null, 4000, 4000);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _scenes = await Api.GetScenesAsync();
+        await PollActiveAsync();
+    }
+
+    private async Task PollActiveAsync()
+    {
+        _activeId = (await Api.GetActiveSceneAsync())?.Id;
+        StateHasChanged();
+    }
+
+    private async Task Activate(string id)
+    {
+        _busyId = id;
+        try
+        {
+            var result = await Api.ActivateSceneAsync(id);
+            if (result is null) return;
+
+            _activeId = id;
+            if (result.FullySucceeded)
+            {
+                Ui.ReportOk($"Scene \"{id}\" is live");
+            }
+            else
+            {
+                var problems = new[] { ("light", result.Light), ("music", result.Music), ("sfx", result.SoundEffects) }
+                    .Where(p => p.Item2.StartsWith("error"))
+                    .Select(p => $"{p.Item1}: {p.Item2[7..]}");
+                Ui.ReportError($"Partially applied. {string.Join(" | ", problems)}");
+            }
+        }
+        finally
+        {
+            _busyId = null;
+        }
+    }
+
+    // "(beer emoji) Tavern" -> big emoji + "Tavern"; names without a leading symbol get the die.
+    private static (string Emoji, string Label) SplitName(string name, string fallback)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(name) ? fallback : name.Trim();
+        var space = trimmed.IndexOf(' ');
+        if (space > 0 && trimmed[..space].Any(c => c > (char)0x2000))
+            return (trimmed[..space], trimmed[(space + 1)..]);
+        return (FallbackEmoji, trimmed);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

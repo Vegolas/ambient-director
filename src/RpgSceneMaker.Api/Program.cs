@@ -17,6 +17,7 @@ builder.Services.AddSingleton<TuyaSetupService>();
 builder.Services.AddHttpClient<HueLightService>(client => client.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddHttpClient<HueSetupService>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<SceneStore>();
+builder.Services.AddSingleton<CurrentState>();
 builder.Services.AddScoped<SceneActivator>();
 builder.Services.AddHttpClient<KenkuClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
 
@@ -54,15 +55,47 @@ app.Use(async (context, next) =>
     }
 });
 
+// Optional shared-secret check for when the API listens on the whole LAN.
+// Enabled by setting Security:ApiKey; the Blazor UI sends it as an X-Api-Key header,
+// and Stream-Deck-style callers can append ?apiKey=... instead.
+app.Use(async (context, next) =>
+{
+    var requiredKey = app.Configuration["Security:ApiKey"];
+    if (!string.IsNullOrEmpty(requiredKey) && IsProtectedPath(context.Request.Path))
+    {
+        var provided = context.Request.Headers["X-Api-Key"].FirstOrDefault()
+                       ?? context.Request.Query["apiKey"].FirstOrDefault();
+        if (provided != requiredKey)
+        {
+            await Results.Problem(title: "Unauthorized",
+                detail: "Missing or wrong API key. Send it as an X-Api-Key header or ?apiKey= query parameter.",
+                statusCode: StatusCodes.Status401Unauthorized).ExecuteAsync(context);
+            return;
+        }
+    }
+    await next();
+
+    static bool IsProtectedPath(PathString path) =>
+        path.StartsWithSegments("/scenes") || path.StartsWithSegments("/lights") ||
+        path.StartsWithSegments("/music") || path.StartsWithSegments("/sfx") ||
+        path.StartsWithSegments("/setup");
+});
+
+// The Blazor WASM control panel is served from this same process.
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
 string[] getOrPost = ["GET", "POST"];
 
-app.MapGet("/", () => Results.Content(Dashboard.Html, "text/html; charset=utf-8"));
 app.MapGet("/health", () => new { status = "ok" });
 
 // ---------- Scenes ----------
 var scenes = app.MapGroup("/scenes");
 
 scenes.MapGet("/", (SceneStore store) => store.GetAll());
+
+scenes.MapGet("/active", (CurrentState state) =>
+    new { id = state.ActiveSceneId, activatedAt = state.ActivatedAt });
 
 scenes.MapGet("/{id}", (string id, SceneStore store) =>
     store.Get(id) is { } scene ? Results.Ok(scene) : Results.NotFound());
@@ -203,5 +236,8 @@ setup.MapGet("/local-keys", (string accessId, string apiSecret, string deviceId,
 setup.MapGet("/hue/discover", (HueSetupService hue) => hue.DiscoverAsync());
 setup.MapMethods("/hue/register", getOrPost, (string bridgeIp, HueSetupService hue) => hue.RegisterAsync(bridgeIp));
 setup.MapGet("/hue/lights", (string? bridgeIp, string? appKey, HueSetupService hue) => hue.GetLightsAsync(bridgeIp, appKey));
+
+// Everything that isn't an API route is the Blazor control panel.
+app.MapFallbackToFile("index.html");
 
 app.Run();

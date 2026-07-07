@@ -1,6 +1,6 @@
 # 🎲 RPG Scene Maker
 
-A small local REST API (C# / .NET 10 Minimal API) that switches your whole table mood with one Stream Deck button press:
+A local REST API (C# / .NET 10 Minimal API) **plus a touch control panel (Blazor WASM)** that switches your whole table mood with one tap — from a Stream Deck, an iPad, or any browser:
 
 - **Lighting** — a Tuya smart bulb (e.g. Polux GU10) **or Philips Hue lights**, controlled **directly over your LAN** (fast, works without internet). Pick the system with `Lighting:Provider` (`tuya` / `hue`) — scenes and endpoints are identical for both.
 - **Music & sound effects** — [Kenku FM](https://www.kenku.fm/) via its Remote API (playlists for ambience, soundboard for one-shot effects).
@@ -14,7 +14,15 @@ Every command endpoint accepts **both GET and POST**, so the built-in Stream Dec
 dotnet run --project src/RpgSceneMaker.Api
 ```
 
-The API listens on **http://localhost:5252**. Open that URL in a browser — there is a small control panel for testing buttons and copying Kenku ids.
+This serves both the API and the control panel on **http://localhost:5252** (and on your LAN — see the iPad section). The panel has four tabs: **Scenes** (one-tap presets with live active highlight), **Music** (now playing, transport, volume, playlists), **Sounds** (soundboard with playing indicators), **Lights** (mood colors, brightness, white temperature).
+
+## Using it from an iPad (or any tablet/phone)
+
+1. Run the API on your PC. The first `dotnet run` after this change makes Windows ask about network access — **allow it for private networks**. (If you skipped the prompt: `netsh advfirewall firewall add rule name="RPG Scene Maker" dir=in action=allow protocol=TCP localport=5252`.)
+2. Find your PC's LAN address: `ipconfig` → IPv4, e.g. `192.168.1.20`. A DHCP reservation for the PC keeps the address stable.
+3. On the iPad open Safari → `http://192.168.1.20:5252`, then **Share → Add to Home Screen**. It launches fullscreen like a native app.
+4. Recommended: set an API key (see Security below), then enter the same key on the iPad via the ⚙ button — it is stored on the device.
+5. Table tip: Settings → Display & Brightness → Auto-Lock → Never (or use Guided Access) so the panel doesn't sleep mid-session.
 
 ## One-time setup
 
@@ -22,7 +30,7 @@ The API listens on **http://localhost:5252**. Open that URL in a browser — the
 
 1. Install and open [Kenku FM](https://www.kenku.fm/), add your playlists (ambience) and soundboards (effects).
 2. Enable the remote: **Kenku FM → Settings → Remote → Enable** (leave the default `127.0.0.1:3333`).
-3. Open http://localhost:5252 — the dashboard lists your playlists/soundboards with their **ids**. Click an id to copy it.
+3. The control panel's Music/Sounds tabs list everything automatically. For `scenes.json` you need ids: `GET /music/playlists` and `GET /sfx/sounds` return them.
 
 ### 2a. Tuya bulb (local control)
 
@@ -103,7 +111,7 @@ Edit [scenes.json](src/RpgSceneMaker.Api/scenes.json) (hot-reloaded — no resta
 
 | Area | Endpoints |
 |---|---|
-| Scenes | `GET /scenes`, `GET/PUT/DELETE /scenes/{id}`, `GET\|POST /scenes/{id}/activate` |
+| Scenes | `GET /scenes`, `GET /scenes/active`, `GET/PUT/DELETE /scenes/{id}`, `GET\|POST /scenes/{id}/activate` |
 | Lights | `/lights/on`, `/lights/off`, `/lights/toggle`, `/lights/color?hex=FF8C2A&brightness=80`, `/lights/white?brightness=80&temperature=30`, `/lights/brightness?value=50`, `GET /lights/status` |
 | Music | `/music/play?id=…`, `/music/pause`, `/music/resume`, `/music/next`, `/music/previous`, `/music/volume?value=0.5`, `/music/mute`, `/music/shuffle`, `/music/repeat?mode=off\|track\|playlist`, `GET /music/playlists`, `GET /music/state` |
 | SFX | `/sfx/play?id=…`, `/sfx/stop?id=…`, `GET /sfx/sounds`, `GET /sfx/state` |
@@ -116,7 +124,8 @@ All command endpoints accept GET or POST; parameters go in the query string.
 
 | Key | Meaning |
 |---|---|
-| `Urls` | Listen address. Keep `localhost` (Stream Deck runs on the same PC). |
+| `Urls` | Listen address, default `http://0.0.0.0:5252` so tablets on your Wi-Fi can reach the panel. Change to `http://localhost:5252` to lock it to this PC. |
+| `Security:ApiKey` | Optional shared secret. When set, all control endpoints require it (`X-Api-Key` header or `?apiKey=`); the panel asks for it under ⚙. |
 | `Lighting:Provider` | `tuya` (default) or `hue` — which system scenes and `/lights` control. |
 | `Tuya:Ip / DeviceId / LocalKey` | Bulb connection (see setup above). |
 | `Tuya:ProtocolVersion` | `3.3` (default) or `3.1` for very old firmware. |
@@ -126,4 +135,4 @@ All command endpoints accept GET or POST; parameters go in the query string.
 | `Kenku:BaseUrl` | Kenku remote address, default `http://127.0.0.1:3333`. |
 | `Scenes:FilePath` | Scenes file location. |
 
-> ⚠️ The API has no authentication — it is meant to listen on `localhost` only. Don't bind it to `0.0.0.0` on untrusted networks.
+> ⚠️ The API listens on your whole LAN by default so the iPad can reach it. On a home network the worst case is someone toggling your lights, but set `Security:ApiKey` anyway — one line of config, and the panel + Stream Deck both support it. Never expose the port to the internet.

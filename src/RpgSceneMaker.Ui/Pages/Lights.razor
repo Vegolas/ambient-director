@@ -1,0 +1,92 @@
+@page "/lights"
+@inject ApiClient Api
+@inject UiState Ui
+
+<PageTitle>Scene Maker — Lights</PageTitle>
+
+<h2 class="rune">Power</h2>
+<div class="btn-row">
+    <button class="btn big primary" @onclick="@(() => Send("lights/on", "Light on"))">On</button>
+    <button class="btn big" @onclick="@(() => Send("lights/toggle"))">Toggle</button>
+    <button class="btn big danger" @onclick="@(() => Send("lights/off", "Light off"))">Off</button>
+</div>
+
+<h2 class="rune">Mood Colors</h2>
+<div class="swatch-grid">
+    @foreach (var (hex, name) in Moods)
+    {
+        <button class="swatch @(hex == _pickedHex ? "picked" : "")"
+                style="background:@hex; --swc:@hex"
+                title="@name"
+                aria-label="@name"
+                @onclick="() => SetColor(hex, name)"></button>
+    }
+    <input type="color" value="@_pickedHex" title="Custom color"
+           @onchange="@(e => SetColor(e.Value?.ToString() ?? "#ff8c2a", "custom color"))" />
+</div>
+
+<h2 class="rune">Brightness</h2>
+<div class="panel">
+    <div class="slider-row">
+        <span class="slider-ico">🔅</span>
+        <input type="range" min="1" max="100" value="@_brightness" @onchange="OnBrightnessChanged" aria-label="Brightness" />
+        <span class="slider-val">@_brightness%</span>
+    </div>
+</div>
+
+<h2 class="rune">White Light</h2>
+<div class="panel">
+    <div class="slider-row">
+        <span class="slider-ico">🕯️</span>
+        <input type="range" min="0" max="100" value="@_temperature" @onchange="OnTemperatureChanged" aria-label="Color temperature" />
+        <span class="slider-ico">❄️</span>
+    </div>
+    <div class="btn-row">
+        <button class="btn primary" @onclick="ApplyWhite">Set white (@_brightness%, @TempLabel)</button>
+    </div>
+</div>
+
+@code {
+    private static readonly (string Hex, string Name)[] Moods =
+    [
+        ("#ff8c2a", "Candlelight"),
+        ("#ff1e1e", "Blood / combat"),
+        ("#3a7a4a", "Forest / dungeon"),
+        ("#7a3aff", "Arcane"),
+        ("#4aa8ff", "Ice / water"),
+        ("#ff4a8c", "Fey"),
+        ("#ffd84a", "Treasure"),
+        ("#20e0c0", "Poison / ghost"),
+    ];
+
+    private string _pickedHex = "#ff8c2a";
+    private int _brightness = 80;
+    private int _temperature = 40;
+
+    private string TempLabel => _temperature < 34 ? "warm" : _temperature > 66 ? "cold" : "neutral";
+
+    private Task Send(string path, string? ok = null) => Api.CommandAsync(path, ok);
+
+    private async Task SetColor(string hex, string name)
+    {
+        _pickedHex = hex;
+        await Api.CommandAsync($"lights/color?hex={Uri.EscapeDataString(hex.TrimStart('#'))}&brightness={_brightness}", $"Light: {name}");
+    }
+
+    private async Task OnBrightnessChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var value)) return;
+        _brightness = value;
+        await Api.CommandAsync($"lights/brightness?value={value}");
+    }
+
+    private async Task OnTemperatureChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+            _temperature = value;
+        await ApplyWhite();
+    }
+
+    private Task ApplyWhite() =>
+        Api.CommandAsync($"lights/white?brightness={_brightness}&temperature={_temperature}", $"White light ({TempLabel})");
+}

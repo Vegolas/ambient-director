@@ -1,0 +1,126 @@
+@page "/music"
+@implements IDisposable
+@inject ApiClient Api
+@inject UiState Ui
+
+<PageTitle>Scene Maker — Music</PageTitle>
+
+<h2 class="rune">Now Playing</h2>
+
+<div class="panel">
+    <p class="now-title">@(_state?.TrackTitle ?? "Nothing playing")</p>
+    <p class="now-sub">@(_state?.PlaylistTitle ?? "Pick a playlist below")</p>
+
+    @if (_state is { Duration: > 0 })
+    {
+        <div class="progress"><div style="width:@(Math.Clamp(_state.Progress / _state.Duration * 100, 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
+    }
+
+    <div class="transport">
+        <button class="btn" @onclick="@(() => Send("music/previous"))" aria-label="Previous">⏮</button>
+        @if (_state?.Playing == true)
+        {
+            <button class="btn primary play" @onclick="@(() => Send("music/pause"))" aria-label="Pause">⏸</button>
+        }
+        else
+        {
+            <button class="btn primary play" @onclick="@(() => Send("music/resume"))" aria-label="Play">▶</button>
+        }
+        <button class="btn" @onclick="@(() => Send("music/next"))" aria-label="Next">⏭</button>
+    </div>
+
+    <div class="slider-row">
+        <span class="slider-ico">🔉</span>
+        <input type="range" min="0" max="100" value="@_volumePercent"
+               @onchange="OnVolumeChanged" aria-label="Volume" />
+        <span class="slider-val">@_volumePercent%</span>
+    </div>
+
+    <div class="chip-row">
+        <button class="chip @(_state?.Muted == true ? "on" : "")"
+                @onclick="@(() => Send($"music/mute?value={(_state?.Muted == true ? "false" : "true")}"))">Mute</button>
+        <button class="chip @(_state?.Shuffle == true ? "on" : "")"
+                @onclick="@(() => Send($"music/shuffle?value={(_state?.Shuffle == true ? "false" : "true")}"))">Shuffle</button>
+        <button class="chip @(_state?.Repeat == "playlist" ? "on" : "")"
+                @onclick="@(() => Send("music/repeat?mode=playlist"))">Repeat list</button>
+        <button class="chip @(_state?.Repeat == "track" ? "on" : "")"
+                @onclick="@(() => Send("music/repeat?mode=track"))">Repeat track</button>
+        <button class="chip @(_state?.Repeat == "off" ? "on" : "")"
+                @onclick="@(() => Send("music/repeat?mode=off"))">No repeat</button>
+    </div>
+</div>
+
+<h2 class="rune">Playlists</h2>
+
+@if (_playlists is null)
+{
+    <p class="empty-note">Reading the songbook…</p>
+}
+else if (_playlists.Count == 0)
+{
+    <p class="empty-note">No playlists found — is Kenku FM running with Remote enabled?</p>
+}
+else
+{
+    <div class="klist">
+        @foreach (var group in _playlists)
+        {
+            <p class="kgroup-title">@group.Title</p>
+            <button class="krow" @onclick="() => Play(group.Id, group.Title)">
+                <span class="krow-ico">📁</span>
+                <span class="krow-title">Play all — @group.Title</span>
+            </button>
+            @foreach (var track in group.Items)
+            {
+                <button class="krow" @onclick="() => Play(track.Id, track.Title)">
+                    <span class="krow-ico">♪</span>
+                    <span class="krow-title">@track.Title</span>
+                </button>
+            }
+        }
+    </div>
+}
+
+@code {
+    private MusicState? _state;
+    private List<KenkuGroup>? _playlists;
+    private int _volumePercent = 50;
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await PollAsync();
+        _playlists = await Api.GetPlaylistsAsync();
+        _timer = new Timer(_ => _ = InvokeAsync(PollAsync), null, 3000, 3000);
+    }
+
+    private async Task PollAsync()
+    {
+        _state = await Api.GetMusicStateAsync();
+        if (_state is not null)
+            _volumePercent = (int)Math.Round(_state.Volume * 100);
+        StateHasChanged();
+    }
+
+    private async Task Send(string path)
+    {
+        if (await Api.CommandAsync(path))
+            await PollAsync();
+    }
+
+    private async Task Play(string id, string title)
+    {
+        if (await Api.CommandAsync($"music/play?id={Uri.EscapeDataString(id)}", $"Playing {title}"))
+            await PollAsync();
+    }
+
+    private async Task OnVolumeChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var percent)) return;
+        _volumePercent = percent;
+        var volume = (percent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await Api.CommandAsync($"music/volume?value={volume}");
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

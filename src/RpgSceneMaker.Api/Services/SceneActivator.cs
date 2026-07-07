@@ -8,10 +8,13 @@ public record ActivationResult(string Scene, string Light, string Music, string 
 }
 
 /// <summary>Applies a scene: light, music and sound effects run concurrently so the table switches fast.</summary>
-public class SceneActivator(ILightService lights, KenkuClient kenku, ILogger<SceneActivator> logger)
+public class SceneActivator(ILightService lights, KenkuClient kenku, CurrentState state, ILogger<SceneActivator> logger)
 {
     public async Task<ActivationResult> ActivateAsync(Scene scene)
     {
+        state.ActiveSceneId = scene.Id;
+        state.ActivatedAt = DateTimeOffset.Now;
+
         var lightTask = RunAsync("light", () => scene.Light is null
             ? Task.FromResult(false)
             : Apply(() => lights.ApplyAsync(scene.Light)));
