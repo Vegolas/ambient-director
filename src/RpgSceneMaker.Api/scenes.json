@@ -1,0 +1,44 @@
+[
+  {
+    "id": "tavern",
+    "name": "🍺 Tavern",
+    "light": { "power": true, "color": "#FF8C2A", "brightness": 70 },
+    "music": { "playId": "PASTE-KENKU-PLAYLIST-ID-HERE", "volume": 0.4 },
+    "soundEffects": []
+  },
+  {
+    "id": "combat",
+    "name": "⚔️ Combat",
+    "light": { "power": true, "color": "#FF1E1E", "brightness": 100 },
+    "music": { "playId": "PASTE-KENKU-PLAYLIST-ID-HERE", "volume": 0.7 },
+    "soundEffects": [ "PASTE-KENKU-SOUND-ID-HERE" ]
+  },
+  {
+    "id": "dungeon",
+    "name": "🕯️ Dungeon",
+    "light": { "power": true, "color": "#3A7A4A", "brightness": 25 },
+    "music": { "playId": "PASTE-KENKU-PLAYLIST-ID-HERE", "volume": 0.5 },
+    "soundEffects": []
+  },
+  {
+    "id": "mystery",
+    "name": "🔮 Mystery",
+    "light": { "power": true, "color": "#7A3AFF", "brightness": 40 },
+    "music": { "volume": 0.3 },
+    "soundEffects": []
+  },
+  {
+    "id": "rest",
+    "name": "🏕️ Rest / normal light",
+    "light": { "power": true, "brightness": 90, "temperature": 50 },
+    "music": { "pause": true },
+    "soundEffects": []
+  },
+  {
+    "id": "lights-out",
+    "name": "🌑 Session end",
+    "light": { "power": false },
+    "music": { "pause": true },
+    "soundEffects": []
+  }
+]
