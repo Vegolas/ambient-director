@@ -15,7 +15,10 @@ else
         <button class="chip @(IsHue ? "" : "on")" @onclick="@(() => SetProvider("tuya"))">Tuya bulb</button>
         <button class="chip @(IsHue ? "on" : "")" @onclick="@(() => SetProvider("hue"))">Philips Hue</button>
     </div>
+    <p class="hint">Only the selected system's settings are shown. Scenes and the Lights tab control it.</p>
 
+    @if (IsHue)
+    {
     <h2 class="rune">Philips Hue</h2>
     <div class="panel">
         <div class="field">
@@ -74,7 +77,9 @@ else
             <button class="btn primary" @onclick="SaveConfig" disabled="@_busy">Save Hue settings</button>
         </div>
     </div>
-
+    }
+    else
+    {
     <h2 class="rune">Tuya Bulb</h2>
     <div class="panel">
         <div class="field">
@@ -117,6 +122,7 @@ else
         </div>
         <p class="hint">The local key still comes from the Tuya IoT portal — see the README walkthrough.</p>
     </div>
+    }
 
     <h2 class="rune">This Device</h2>
     <div class="panel">
@@ -162,6 +168,8 @@ else
         _config.Provider = provider;
         if (await Api.SaveConfigAsync(_config))
             Ui.ReportOk($"Scenes now control {(provider == "hue" ? "Philips Hue" : "the Tuya bulb")}");
+        if (IsHue && HueIsPaired && _hueLights is null)
+            await LoadHueLights();
     }
 
     private async Task SaveConfig()
