@@ -17,7 +17,7 @@ Two projects under `src/`; the solution file lives at
   It also **hosts** the Blazor WASM panel: it project-references the UI, serves it via
   `UseBlazorFrameworkFiles()`, and falls back non-API routes to `index.html`. So the panel's API base
   address is the same origin.
-- **RpgSceneMaker.Ui** — Blazor WASM control panel. Pages in `Pages/` (Scenes, Music, Lights, Settings);
+- **RpgSceneMaker.Ui** — Blazor WASM control panel. Pages in `Pages/` (Scenes, Music, Lights, Settings, Logs);
   reusable components in `Components/`; wire DTOs and editor form models in `Contracts/`; shared
   constants/helpers in `Shared/` (Palette, SceneNaming, LightFormat, UiExtensions). All server calls go
   through [ApiClient.cs](src/RpgSceneMaker.Ui/Services/ApiClient.cs).
@@ -47,6 +47,10 @@ Running the API is enough to see the panel — it builds and serves the WASM ass
 - **`SceneActivator`** — applies a scene's light/music **concurrently**; each part reports
   ok/skipped/error independently (activation returns HTTP 207 if any part failed).
 - **`CurrentState`** — singleton remembering the last activated scene so the panel can highlight it.
+- **`InMemoryLogStore`** ([InMemoryLogStore.cs](src/RpgSceneMaker.Api/Logging/InMemoryLogStore.cs)) —
+  bounded ring buffer of recent log entries, fed by `InMemoryLoggerProvider` (our logs at Information,
+  everything else at Warning+) and surfaced by `/logs/list` + the panel's Logs tab. The error middleware
+  logs every caught failure here.
 - **`SceneStore` / `SettingsStore`** — persistence (see below).
 
 ### Conventions
