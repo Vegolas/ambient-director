@@ -22,6 +22,8 @@ builder.Services.AddHttpClient<HueSetupService>(client => client.Timeout = TimeS
 builder.Services.AddSingleton<SceneStore>();
 builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<CurrentState>();
+builder.Services.AddSingleton<LightRegistry>();
+builder.Services.AddSingleton<EffectEngine>();
 builder.Services.AddScoped<SceneActivator>();
 builder.Services.AddHttpClient<KenkuClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
 
@@ -115,6 +117,7 @@ scenes.MapGet("/{id}", async (string id, SceneStore store) =>
 scenes.MapPut("/{id}", async (string id, Scene scene, SceneStore store) =>
 {
     scene.Id = id;
+    SceneValidation.Validate(scene);
     await store.UpsertAsync(scene);
     return Results.Ok(scene);
 });
@@ -130,46 +133,103 @@ scenes.MapMethods("/{id}/activate", getOrPost, async (string id, SceneStore stor
     return Results.Json(result, statusCode: result.FullySucceeded ? 200 : 207);
 });
 
-// ---------- Lights (Tuya bulb) ----------
+// ---------- Lights ----------
+// Manual light control (and scene activation) always ends any running effect loops.
 var lights = app.MapGroup("/lights");
 
-lights.MapMethods("/on", getOrPost, async (ILightService bulb) =>
+lights.MapMethods("/on", getOrPost, async (ILightService bulb, EffectEngine effects) =>
 {
+    effects.StopAll();
     await bulb.SetPowerAsync(true);
     return new { light = "on" };
 });
 
-lights.MapMethods("/off", getOrPost, async (ILightService bulb) =>
+lights.MapMethods("/off", getOrPost, async (ILightService bulb, EffectEngine effects) =>
 {
+    effects.StopAll();
     await bulb.SetPowerAsync(false);
     return new { light = "off" };
 });
 
-lights.MapMethods("/toggle", getOrPost, async (ILightService bulb) =>
-    new { light = await bulb.ToggleAsync() ? "on" : "off" });
+lights.MapMethods("/toggle", getOrPost, async (ILightService bulb, EffectEngine effects) =>
+{
+    effects.StopAll();
+    return new { light = await bulb.ToggleAsync() ? "on" : "off" };
+});
 
 // /lights/color?hex=FF8C2A&brightness=80
-lights.MapMethods("/color", getOrPost, async (string hex, int? brightness, ILightService bulb) =>
+lights.MapMethods("/color", getOrPost, async (string hex, int? brightness, ILightService bulb, EffectEngine effects) =>
 {
+    effects.StopAll();
     await bulb.SetColorAsync(hex, brightness);
     return new { light = "colour", hex, brightness };
 });
 
 // /lights/white?brightness=80&temperature=30   (temperature: 0 warm - 100 cold)
-lights.MapMethods("/white", getOrPost, async (int? brightness, int? temperature, ILightService bulb) =>
+lights.MapMethods("/white", getOrPost, async (int? brightness, int? temperature, ILightService bulb, EffectEngine effects) =>
 {
+    effects.StopAll();
     await bulb.SetWhiteAsync(brightness ?? 100, temperature);
     return new { light = "white", brightness = brightness ?? 100, temperature };
 });
 
 // /lights/brightness?value=50
-lights.MapMethods("/brightness", getOrPost, async (int value, ILightService bulb) =>
+lights.MapMethods("/brightness", getOrPost, async (int value, ILightService bulb, EffectEngine effects) =>
 {
+    effects.StopAll();
     await bulb.SetBrightnessAsync(value);
     return new { brightness = value };
 });
 
 lights.MapGet("/status", (ILightService bulb) => bulb.GetStatusAsync());
+
+// Registered lights the per-light endpoints and scenes can target.
+lights.MapGet("/list", (LightRegistry registry) =>
+    registry.GetAll().Select(l => new { key = l.Key, name = l.Name, provider = l.Provider }));
+
+// ---- Per-light manual control (by registry key) ----
+lights.MapMethods("/{key}/on", getOrPost, async (string key, LightRegistry registry, EffectEngine effects) =>
+{
+    effects.StopAll();
+    var r = registry.Resolve(key);
+    await r.Service.SetPowerAsync(true, r.TargetId);
+    return new { key, light = "on" };
+});
+
+lights.MapMethods("/{key}/off", getOrPost, async (string key, LightRegistry registry, EffectEngine effects) =>
+{
+    effects.StopAll();
+    var r = registry.Resolve(key);
+    await r.Service.SetPowerAsync(false, r.TargetId);
+    return new { key, light = "off" };
+});
+
+// /lights/{key}/color?hex=FF8C2A&brightness=80
+lights.MapMethods("/{key}/color", getOrPost, async (string key, string hex, int? brightness, LightRegistry registry, EffectEngine effects) =>
+{
+    effects.StopAll();
+    var r = registry.Resolve(key);
+    await r.Service.SetColorAsync(hex, brightness, r.TargetId);
+    return new { key, light = "colour", hex, brightness };
+});
+
+// /lights/{key}/white?brightness=80&temperature=30
+lights.MapMethods("/{key}/white", getOrPost, async (string key, int? brightness, int? temperature, LightRegistry registry, EffectEngine effects) =>
+{
+    effects.StopAll();
+    var r = registry.Resolve(key);
+    await r.Service.SetWhiteAsync(brightness ?? 100, temperature, r.TargetId);
+    return new { key, light = "white", brightness = brightness ?? 100, temperature };
+});
+
+// /lights/{key}/brightness?value=50
+lights.MapMethods("/{key}/brightness", getOrPost, async (string key, int value, LightRegistry registry, EffectEngine effects) =>
+{
+    effects.StopAll();
+    var r = registry.Resolve(key);
+    await r.Service.SetBrightnessAsync(value, r.TargetId);
+    return new { key, brightness = value };
+});
 
 // ---------- Music (Kenku FM playlists) ----------
 var music = app.MapGroup("/music");
@@ -253,6 +313,7 @@ setup.MapPut("/config", (LightingConfigDto config, SettingsStore store) =>
         throw new ArgumentException("Provider, Hue and Tuya sections are all required.");
     if (config.Provider.ToLowerInvariant() is not ("tuya" or "hue"))
         throw new ArgumentException("Provider must be 'tuya' or 'hue'.");
+    LightConfigValidation.Validate(config.Lights);
     store.Save(config);
     return Results.Ok(config);
 });
@@ -266,3 +327,99 @@ setup.MapGet("/hue/lights", (string? bridgeIp, string? appKey, HueSetupService h
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+/// <summary>Guards a scene coming from the editor before it reaches the store; failures map to HTTP 400.</summary>
+static class SceneValidation
+{
+    public static void Validate(Scene scene)
+    {
+        if (string.IsNullOrWhiteSpace(scene.Id))
+            throw new ArgumentException("Scene id is required.");
+        if (!scene.Id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+            throw new ArgumentException("Scene id may only contain letters, digits, '-' and '_'.");
+        if (string.IsNullOrWhiteSpace(scene.Name))
+            throw new ArgumentException("Scene name is required.");
+
+        if (scene.Light is { } light)
+        {
+            if (light.Brightness is < 0 or > 100)
+                throw new ArgumentException("Light brightness must be between 0 and 100.");
+            if (light.Temperature is < 0 or > 100)
+                throw new ArgumentException("Light temperature must be between 0 and 100.");
+            if (light.Color is not null)
+                light.Color = LightValidation.NormalizeHex(light.Color);
+        }
+
+        // JSON "lights": null / "colors": null / "soundEffects": null overwrite the C# defaults.
+        scene.Lights ??= [];
+        scene.SoundEffects ??= [];
+
+        foreach (var entry in scene.Lights)
+        {
+            if (string.IsNullOrWhiteSpace(entry.LightKey) || !LightValidation.IsSlug(entry.LightKey))
+                throw new ArgumentException("Each scene light needs a LightKey slug ([a-z0-9-_]).");
+            if (entry.Brightness is < 0 or > 100)
+                throw new ArgumentException($"Light '{entry.LightKey}' brightness must be between 0 and 100.");
+            if (entry.Temperature is < 0 or > 100)
+                throw new ArgumentException($"Light '{entry.LightKey}' temperature must be between 0 and 100.");
+            if (entry.Color is not null)
+                entry.Color = LightValidation.NormalizeHex(entry.Color);
+
+            if (entry.Effect is { } fx)
+            {
+                fx.Colors ??= [];
+                if (fx.Type is not ("flicker" or "glow" or "storm" or "drift"))
+                    throw new ArgumentException($"Unknown effect type '{fx.Type}' on light '{entry.LightKey}'. Use flicker, glow, storm or drift.");
+                if (fx.Speed is < 1 or > 10)
+                    throw new ArgumentException($"Effect speed on light '{entry.LightKey}' must be between 1 and 10.");
+                if (fx.Intensity is < 1 or > 10)
+                    throw new ArgumentException($"Effect intensity on light '{entry.LightKey}' must be between 1 and 10.");
+                for (var i = 0; i < fx.Colors.Count; i++)
+                    fx.Colors[i] = LightValidation.NormalizeHex(fx.Colors[i]);
+                if (fx.Type == "drift" && fx.Colors.Count < 2)
+                    throw new ArgumentException($"The 'drift' effect on light '{entry.LightKey}' needs at least 2 colors.");
+            }
+        }
+
+        if (scene.Music is { Volume: { } volume } && volume is < 0.0 or > 1.0)
+            throw new ArgumentException("Music volume must be between 0.0 and 1.0.");
+    }
+}
+
+/// <summary>Guards the light registry coming from the Settings page before it reaches the store.</summary>
+static class LightConfigValidation
+{
+    public static void Validate(List<RegisteredLightDto>? lights)
+    {
+        if (lights is null) return;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var l in lights)
+        {
+            if (string.IsNullOrWhiteSpace(l.Key) || !LightValidation.IsSlug(l.Key))
+                throw new ArgumentException($"Light key '{l.Key}' must be a non-empty slug ([a-z0-9-_]).");
+            if (!seen.Add(l.Key))
+                throw new ArgumentException($"Duplicate light key '{l.Key}'. Keys must be unique (case-insensitive).");
+            if (l.Provider?.ToLowerInvariant() is not ("tuya" or "hue"))
+                throw new ArgumentException($"Light '{l.Key}' provider must be 'tuya' or 'hue'.");
+            if (l.Provider.Equals("hue", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(l.HueId))
+                throw new ArgumentException($"Hue light '{l.Key}' needs a HueId.");
+        }
+    }
+}
+
+/// <summary>Shared light-related validation helpers.</summary>
+static class LightValidation
+{
+    public static bool IsSlug(string s) => s.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+
+    // Accept #RGB or #RRGGBB (leading # optional) and store the canonical "#RRGGBB" the light services parse.
+    public static string NormalizeHex(string raw)
+    {
+        var s = raw.Trim().TrimStart('#');
+        if (s.Length == 3 && s.All(Uri.IsHexDigit))
+            s = string.Concat(s.Select(c => $"{c}{c}"));
+        if (s.Length != 6 || !s.All(Uri.IsHexDigit))
+            throw new ArgumentException($"'{raw}' is not a valid hex color. Use #RGB or #RRGGBB, e.g. #FF8C2A.");
+        return "#" + s.ToUpperInvariant();
+    }
+}

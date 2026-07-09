@@ -16,6 +16,22 @@ public class LightingConfig
     public HueConfig Hue { get; set; } = new();
 
     public TuyaConfig Tuya { get; set; } = new();
+
+    /// <summary>Individually addressable lights that scenes and /lights/{key} endpoints control.</summary>
+    public List<RegisteredLight> Lights { get; set; } = [];
+}
+
+/// <summary>One addressable light in the registry. Key is a stable slug used by scenes and endpoints.</summary>
+public class RegisteredLight
+{
+    public string Key { get; set; } = "";
+    public string Name { get; set; } = "";
+
+    /// <summary>"tuya" or "hue".</summary>
+    public string Provider { get; set; } = "tuya";
+
+    /// <summary>Hue Bridge light id; required when Provider == "hue", ignored for tuya (the single bulb).</summary>
+    public string? HueId { get; set; }
 }
 
 public class HueConfig

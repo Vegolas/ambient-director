@@ -1,4 +1,5 @@
 @page "/settings"
+@using System.Text
 @inject ApiClient Api
 @inject UiState Ui
 
@@ -124,6 +125,69 @@ else
     </div>
     }
 
+    <h2 class="rune">Light Registry</h2>
+    <div class="panel">
+        <p class="hint">Individually addressable lights that scenes and the Lights tab can target one by one.</p>
+
+        @if (_config.Lights.Count == 0)
+        {
+            <p class="empty-note" style="margin:0.8rem 0">No lights registered yet — add your Hue lights or the Tuya bulb below.</p>
+        }
+        else
+        {
+            <div class="reg-list">
+                @foreach (var light in _config.Lights)
+                {
+                    <div class="reg-row">
+                        <span class="reg-badge @(light.Provider == "hue" ? "hue" : "tuya")">@(light.Provider == "hue" ? "Hue" : "Tuya")</span>
+                        <input class="reg-name" type="text" @bind="light.Name" placeholder="Light name" />
+                        <code class="reg-key" title="Stable key used by scenes and endpoints">@light.Key</code>
+                        <button class="reg-remove" aria-label="Remove light" @onclick="() => RemoveLight(light)">✕</button>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="btn-row" style="margin-top:1rem">
+            <button class="btn" @onclick="ToggleHueAdd" disabled="@(!HueIsPaired)">Add Hue lights</button>
+            <button class="btn" @onclick="AddTuya" disabled="@HasTuya">Add Tuya bulb</button>
+        </div>
+        @if (!HueIsPaired)
+        {
+            <p class="hint">Pair a Hue bridge above to add Hue lights.</p>
+        }
+        @if (HasTuya)
+        {
+            <p class="hint">The Tuya bulb is already registered (only one is supported).</p>
+        }
+
+        @if (_showHueAdd && HueIsPaired)
+        {
+            @if (_hueLights is null)
+            {
+                <p class="empty-note" style="margin-top:1rem">Fetching bridge lights…</p>
+            }
+            else
+            {
+                <div class="reg-list" style="margin-top:1rem">
+                    @foreach (var hl in _hueLights)
+                    {
+                        var added = _config.Lights.Any(l => l.Provider == "hue" && l.HueId == hl.Id);
+                        <div class="reg-row">
+                            <span class="krow-ico">@(hl.Reachable ? "💡" : "⚠️")</span>
+                            <span class="reg-name-static">@hl.Name</span>
+                            <button class="btn small" disabled="@added" @onclick="() => AddHue(hl)">@(added ? "Added" : "Add")</button>
+                        </div>
+                    }
+                </div>
+            }
+        }
+
+        <div class="btn-row" style="margin-top:1rem">
+            <button class="btn primary" @onclick="SaveConfig" disabled="@_busy">Save lights</button>
+        </div>
+    </div>
+
     <h2 class="rune">This Device</h2>
     <div class="panel">
         <div class="field">
@@ -145,9 +209,11 @@ else
     private string? _tuyaStatus;
     private string? _apiKeyInput;
     private bool _busy;
+    private bool _showHueAdd;
 
     private bool IsHue => _config?.Provider.Equals("hue", StringComparison.OrdinalIgnoreCase) == true;
     private bool HueIsPaired => !string.IsNullOrWhiteSpace(_config?.Hue.AppKey);
+    private bool HasTuya => _config?.Lights.Any(l => l.Provider == "tuya") == true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -289,5 +355,62 @@ else
     {
         await Api.SetApiKeyAsync(_apiKeyInput);
         Ui.ReportOk("API key saved on this device");
+    }
+
+    // ---------- light registry ----------
+
+    private async Task ToggleHueAdd()
+    {
+        _showHueAdd = !_showHueAdd;
+        if (_showHueAdd && _hueLights is null)
+            await LoadHueLights();
+    }
+
+    private void AddHue(HueLightDto hl)
+    {
+        if (_config is null) return;
+        if (_config.Lights.Any(l => l.Provider == "hue" && l.HueId == hl.Id)) return;
+        _config.Lights.Add(new RegisteredLightEdit
+        {
+            Provider = "hue",
+            HueId = hl.Id,
+            Name = hl.Name,
+            Key = UniqueKey(Slugify(hl.Name)),
+        });
+    }
+
+    private void AddTuya()
+    {
+        if (_config is null || HasTuya) return;
+        _config.Lights.Add(new RegisteredLightEdit
+        {
+            Provider = "tuya",
+            HueId = null,
+            Name = "Tuya bulb",
+            Key = UniqueKey("tuya-bulb"),
+        });
+    }
+
+    private void RemoveLight(RegisteredLightEdit light) => _config?.Lights.Remove(light);
+
+    private string UniqueKey(string baseKey)
+    {
+        if (string.IsNullOrEmpty(baseKey)) baseKey = "light";
+        var key = baseKey;
+        var n = 2;
+        while (_config!.Lights.Any(l => l.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            key = $"{baseKey}-{n++}";
+        return key;
+    }
+
+    private static string Slugify(string label)
+    {
+        var sb = new StringBuilder();
+        foreach (var c in label.Trim().ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(c)) sb.Append(c);
+            else if (c is ' ' or '-' or '_' && sb.Length > 0 && sb[^1] != '-') sb.Append('-');
+        }
+        return sb.ToString().Trim('-');
     }
 }

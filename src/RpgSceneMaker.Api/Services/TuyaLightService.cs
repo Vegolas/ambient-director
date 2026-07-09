@@ -21,7 +21,8 @@ public class TuyaLightService(SettingsStore settings, ILogger<TuyaLightService> 
     private DpProfile Profile => Opts.DpProfile.Equals("v1", StringComparison.OrdinalIgnoreCase) ? V1 : V2;
     private bool IsV1 => Profile == V1;
 
-    public async Task SetPowerAsync(bool on) =>
+    // targetId / transitionMs are Hue concepts; the single Tuya bulb ignores them.
+    public async Task SetPowerAsync(bool on, string? targetId = null, int? transitionMs = null) =>
         await SendAsync(new() { [Profile.Switch] = on });
 
     public async Task<bool> ToggleAsync()
@@ -33,7 +34,7 @@ public class TuyaLightService(SettingsStore settings, ILogger<TuyaLightService> 
     }
 
     /// <summary>Switch to colour mode. Brightness percent (0-100) is baked into the HSV value.</summary>
-    public async Task SetColorAsync(string hexColor, int? brightnessPercent = null)
+    public async Task SetColorAsync(string hexColor, int? brightnessPercent = null, string? targetId = null, int? transitionMs = null)
     {
         var (r, g, b) = ColorMath.ParseHexColor(hexColor);
         var (h, s, v) = ColorMath.RgbToHsv(r, g, b);
@@ -49,7 +50,7 @@ public class TuyaLightService(SettingsStore settings, ILogger<TuyaLightService> 
     }
 
     /// <summary>Switch to white mode. Temperature 0 (warm) - 100 (cold).</summary>
-    public async Task SetWhiteAsync(int brightnessPercent, int? temperaturePercent = null)
+    public async Task SetWhiteAsync(int brightnessPercent, int? temperaturePercent = null, string? targetId = null, int? transitionMs = null)
     {
         var dps = new Dictionary<int, object>
         {
@@ -66,7 +67,7 @@ public class TuyaLightService(SettingsStore settings, ILogger<TuyaLightService> 
     }
 
     /// <summary>Set brightness (0-100) without changing mode or hue.</summary>
-    public async Task SetBrightnessAsync(int percent)
+    public async Task SetBrightnessAsync(int percent, string? targetId = null, int? transitionMs = null)
     {
         var dps = await QueryAsync();
         var mode = dps.TryGetValue(Profile.Mode, out var m) ? m?.ToString() : null;

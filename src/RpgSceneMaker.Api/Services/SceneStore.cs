@@ -31,6 +31,7 @@ public class SceneStore(IDbContextFactory<AppDbContext> dbFactory)
         {
             existing.Name = scene.Name;
             existing.Light = scene.Light;
+            existing.Lights = scene.Lights;
             existing.Music = scene.Music;
             existing.SoundEffects = scene.SoundEffects;
         }

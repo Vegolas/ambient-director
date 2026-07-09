@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ApiClient Api
 @inject UiState Ui
+@inject NavigationManager Nav
 
 <PageTitle>Scene Maker — Scenes</PageTitle>
 
@@ -13,7 +14,13 @@
 }
 else if (_scenes.Count == 0)
 {
-    <p class="empty-note">No scenes yet — add them to <code>scenes.json</code> next to the API.</p>
+    <p class="empty-note">No scenes yet — tap below to conjure your first one.</p>
+    <div class="scene-grid">
+        <button class="scene-card ghost" @onclick="NewScene">
+            <span class="scene-emoji">＋</span>
+            <span class="scene-name">New scene</span>
+        </button>
+    </div>
 }
 else
 {
@@ -22,13 +29,19 @@ else
         {
             var (emoji, label) = SplitName(scene.Name, scene.Id);
             <button class="scene-card @(scene.Id == _activeId ? "active" : "") @(_busyId == scene.Id ? "busy" : "")"
-                    style="animation-delay:@(index * 55)ms; --sc:@(scene.Light?.Color ?? "transparent")"
+                    style="animation-delay:@(index * 55)ms; --sc:@(SwatchColor(scene))"
                     @onclick="() => Activate(scene.Id)">
                 <span class="scene-swatch"></span>
+                <span class="card-edit" role="button" tabindex="0" aria-label="Edit scene"
+                      @onclick="() => Edit(scene.Id)" @onclick:stopPropagation="true">✎</span>
                 <span class="scene-emoji">@emoji</span>
                 <span class="scene-name">@label</span>
             </button>
         }
+        <button class="scene-card ghost" @onclick="NewScene">
+            <span class="scene-emoji">＋</span>
+            <span class="scene-name">New scene</span>
+        </button>
     </div>
 }
 
@@ -57,6 +70,16 @@ else
         _activeId = (await Api.GetActiveSceneAsync())?.Id;
         StateHasChanged();
     }
+
+    // Card tint: the legacy "all lights" colour, else the first per-light entry that sets a colour.
+    private static string SwatchColor(SceneDto scene) =>
+        scene.Light?.Color
+        ?? scene.Lights?.FirstOrDefault(l => l.Color is not null)?.Color
+        ?? "transparent";
+
+    private void NewScene() => Nav.NavigateTo("editor");
+
+    private void Edit(string id) => Nav.NavigateTo($"editor/{id}");
 
     private async Task Activate(string id)
     {

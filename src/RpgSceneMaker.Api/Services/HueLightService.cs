@@ -12,7 +12,8 @@ public class HueLightService(HttpClient http, SettingsStore settings) : ILightSe
 {
     private HueConfig Opts => settings.Current.Hue;
 
-    public Task SetPowerAsync(bool on) => SetStateAsync(new Dictionary<string, object> { ["on"] = on });
+    public Task SetPowerAsync(bool on, string? targetId = null, int? transitionMs = null) =>
+        SetStateAsync(new Dictionary<string, object> { ["on"] = on }, targetId, transitionMs);
 
     public async Task<bool> ToggleAsync()
     {
@@ -21,7 +22,7 @@ public class HueLightService(HttpClient http, SettingsStore settings) : ILightSe
         return newState;
     }
 
-    public Task SetColorAsync(string hexColor, int? brightnessPercent = null)
+    public Task SetColorAsync(string hexColor, int? brightnessPercent = null, string? targetId = null, int? transitionMs = null)
     {
         var (r, g, b) = ColorMath.ParseHexColor(hexColor);
         var (h, s, v) = ColorMath.RgbToHsv(r, g, b);
@@ -34,10 +35,10 @@ public class HueLightService(HttpClient http, SettingsStore settings) : ILightSe
             ["hue"] = (int)Math.Round(h / 360 * 65535),
             ["sat"] = (int)Math.Round(s * 254),
             ["bri"] = ToBri(v * 100),
-        });
+        }, targetId, transitionMs);
     }
 
-    public Task SetWhiteAsync(int brightnessPercent, int? temperaturePercent = null)
+    public Task SetWhiteAsync(int brightnessPercent, int? temperaturePercent = null, string? targetId = null, int? transitionMs = null)
     {
         var state = new Dictionary<string, object>
         {
@@ -52,11 +53,11 @@ public class HueLightService(HttpClient http, SettingsStore settings) : ILightSe
             state["ct"] = 500 - (int)Math.Round(Math.Clamp(tp, 0, 100) * (500 - 153) / 100.0);
             state.Remove("sat"); // ct implies white mode by itself
         }
-        return SetStateAsync(state);
+        return SetStateAsync(state, targetId, transitionMs);
     }
 
-    public Task SetBrightnessAsync(int percent) =>
-        SetStateAsync(new Dictionary<string, object> { ["on"] = true, ["bri"] = ToBri(percent) });
+    public Task SetBrightnessAsync(int percent, string? targetId = null, int? transitionMs = null) =>
+        SetStateAsync(new Dictionary<string, object> { ["on"] = true, ["bri"] = ToBri(percent) }, targetId, transitionMs);
 
     public async Task<object> GetStatusAsync()
     {
@@ -89,12 +90,18 @@ public class HueLightService(HttpClient http, SettingsStore settings) : ILightSe
         return group.TryGetProperty("state", out var gs) && gs.TryGetProperty("any_on", out var anyOn) && anyOn.GetBoolean();
     }
 
-    private async Task SetStateAsync(Dictionary<string, object> state)
+    private async Task SetStateAsync(Dictionary<string, object> state, string? targetId = null, int? transitionMs = null)
     {
         EnsureConfigured();
-        var paths = Opts.LightIds.Count > 0
-            ? Opts.LightIds.Select(id => $"/lights/{id}/state")
-            : ["/groups/0/action"];
+        // Hue transitiontime is in units of 100ms.
+        if (transitionMs is int ms)
+            state["transitiontime"] = Math.Max(0, (int)Math.Round(ms / 100.0));
+
+        IEnumerable<string> paths = targetId is not null
+            ? [$"/lights/{targetId}/state"]
+            : Opts.LightIds.Count > 0
+                ? Opts.LightIds.Select(id => $"/lights/{id}/state")
+                : ["/groups/0/action"];
 
         var json = JsonSerializer.Serialize(state);
         foreach (var path in paths)

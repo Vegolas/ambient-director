@@ -5,7 +5,9 @@ namespace RpgSceneMaker.Api.Services;
 
 public record TuyaConfigDto(string Ip, string DeviceId, string LocalKey, string ProtocolVersion, string DpProfile);
 public record HueConfigDto(string BridgeIp, string AppKey, List<string> LightIds);
-public record LightingConfigDto(string Provider, HueConfigDto Hue, TuyaConfigDto Tuya);
+public record RegisteredLightDto(string Key, string Name, string Provider, string? HueId);
+// Lights is optional so older clients that don't send it keep working (treated as empty).
+public record LightingConfigDto(string Provider, HueConfigDto Hue, TuyaConfigDto Tuya, List<RegisteredLightDto>? Lights = null);
 
 /// <summary>
 /// Lighting settings persisted in SQLite. The current value is cached in memory and
@@ -31,7 +33,8 @@ public class SettingsStore(IDbContextFactory<AppDbContext> dbFactory)
         return new LightingConfigDto(
             c.Provider,
             new HueConfigDto(c.Hue.BridgeIp, c.Hue.AppKey, c.Hue.LightIds),
-            new TuyaConfigDto(c.Tuya.Ip, c.Tuya.DeviceId, c.Tuya.LocalKey, c.Tuya.ProtocolVersion, c.Tuya.DpProfile));
+            new TuyaConfigDto(c.Tuya.Ip, c.Tuya.DeviceId, c.Tuya.LocalKey, c.Tuya.ProtocolVersion, c.Tuya.DpProfile),
+            c.Lights.Select(l => new RegisteredLightDto(l.Key, l.Name, l.Provider, l.HueId)).ToList());
     }
 
     public void Save(LightingConfigDto dto)
@@ -61,6 +64,9 @@ public class SettingsStore(IDbContextFactory<AppDbContext> dbFactory)
                 ProtocolVersion = dto.Tuya.ProtocolVersion,
                 DpProfile = dto.Tuya.DpProfile,
             };
+            entity.Lights = (dto.Lights ?? [])
+                .Select(l => new RegisteredLight { Key = l.Key, Name = l.Name, Provider = l.Provider, HueId = l.HueId })
+                .ToList();
 
             db.SaveChanges();
             _current = entity;

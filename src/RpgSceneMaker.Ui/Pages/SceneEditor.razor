@@ -1,0 +1,824 @@
+@* Editor lives under /editor, outside the /scenes API namespace — GET /scenes/new would
+   otherwise match the API's GET /scenes/{id} on a full page load and 404 instead of the app. *@
+@page "/editor"
+@page "/editor/{SceneId}"
+@using System.Text
+@implements IDisposable
+@inject ApiClient Api
+@inject UiState Ui
+@inject NavigationManager Nav
+
+<PageTitle>Scene Maker — @(_isNew ? "New scene" : "Edit scene")</PageTitle>
+
+@if (_loading)
+{
+    <p class="empty-note">Unrolling the scroll…</p>
+}
+else
+{
+    <h2 class="rune">@(_isNew ? "New Scene" : "Edit Scene")</h2>
+
+    <div class="panel">
+        <div class="emoji-row">
+            @foreach (var e in Emojis)
+            {
+                <button class="emoji-pick @(e == _emoji ? "picked" : "")"
+                        @onclick="() => ToggleEmoji(e)">@e</button>
+            }
+        </div>
+        <div class="field" style="margin-top:1rem;margin-bottom:0">
+            <label for="scene-label">Name</label>
+            <input id="scene-label" type="text" value="@_label" @oninput="OnLabelInput"
+                   placeholder="e.g. Tavern" />
+        </div>
+        <p class="hint" style="margin-top:0.6rem">
+            @if (_isNew)
+            {
+                <span>Stream Deck URL: <code>/scenes/@(CurrentId is { Length: > 0 } cid ? cid : "…")/activate</code></span>
+            }
+            else
+            {
+                <span>Id: <code>@_edit.Id</code> (fixed) — <code>/scenes/@_edit.Id/activate</code></span>
+            }
+        </p>
+    </div>
+
+    <h2 class="rune">Lights</h2>
+    <div class="panel">
+        <div class="segmented">
+            <button class="seg @(_scope == LightScope.None ? "on" : "")" @onclick="() => SetScope(LightScope.None)">Leave alone</button>
+            <button class="seg @(_scope == LightScope.All ? "on" : "")" @onclick="() => SetScope(LightScope.All)">All lights</button>
+            <button class="seg @(_scope == LightScope.PerLight ? "on" : "")" @onclick="() => SetScope(LightScope.PerLight)">Per light</button>
+        </div>
+
+        @if (_scope == LightScope.All)
+        {
+            <div class="segmented" style="margin-top:1rem">
+                <button class="seg @(_lightMode == LightMode.Color ? "on" : "")" @onclick="() => _lightMode = LightMode.Color">Color</button>
+                <button class="seg @(_lightMode == LightMode.White ? "on" : "")" @onclick="() => _lightMode = LightMode.White">White</button>
+                <button class="seg @(_lightMode == LightMode.Off ? "on" : "")" @onclick="() => _lightMode = LightMode.Off">Turn off</button>
+            </div>
+
+            @if (_lightMode == LightMode.Color)
+            {
+                <div class="swatch-grid" style="margin-top:1rem">
+                    @foreach (var (hex, name) in Moods)
+                    {
+                        <button class="swatch @(string.Equals(hex, _color, StringComparison.OrdinalIgnoreCase) ? "picked" : "")"
+                                style="background:@hex; --swc:@hex" title="@name" aria-label="@name"
+                                @onclick="() => _color = hex"></button>
+                    }
+                    <input type="color" value="@_color" title="Custom color"
+                           @onchange="e => _color = e.Value?.ToString() ?? _color" />
+                </div>
+                <div class="slider-row">
+                    <span class="slider-ico">🔅</span>
+                    <input type="range" min="1" max="100" value="@_brightness"
+                           @onchange="e => SetBrightness(e)" aria-label="Brightness" />
+                    <span class="slider-val">@_brightness%</span>
+                </div>
+            }
+            else if (_lightMode == LightMode.White)
+            {
+                <div class="slider-row">
+                    <span class="slider-ico">🕯️</span>
+                    <input type="range" min="0" max="100" value="@_temperature"
+                           @onchange="e => SetTemperature(e)" aria-label="Color temperature" />
+                    <span class="slider-ico">❄️</span>
+                </div>
+                <div class="slider-row">
+                    <span class="slider-ico">🔅</span>
+                    <input type="range" min="1" max="100" value="@_brightness"
+                           @onchange="e => SetBrightness(e)" aria-label="Brightness" />
+                    <span class="slider-val">@_brightness%</span>
+                </div>
+            }
+            else
+            {
+                <p class="hint" style="margin-top:0.8rem">The scene switches the lights off.</p>
+            }
+        }
+        else if (_scope == LightScope.PerLight)
+        {
+            @if (_perLight.Count == 0)
+            {
+                <p class="hint" style="margin-top:1rem">Register your lights in <a href="settings">Settings</a> first.</p>
+            }
+            else
+            {
+                <div class="light-rows" style="margin-top:1rem">
+                    @foreach (var row in _perLight)
+                    {
+                        <div class="light-row @(row.Expanded ? "open" : "")">
+                            <button class="light-head" @onclick="() => row.Expanded = !row.Expanded">
+                                <span class="reg-badge @(row.Provider == "hue" ? "hue" : "tuya")">@ProviderLabel(row.Provider)</span>
+                                <span class="light-name">@row.Name @(row.Known ? "" : "(unknown light)")</span>
+                                <span class="light-summary">@Summary(row)</span>
+                                <span class="light-caret">@(row.Expanded ? "▾" : "▸")</span>
+                            </button>
+
+                            @if (row.Expanded)
+                            {
+                                <div class="light-body">
+                                    <div class="segmented">
+                                        <button class="seg @(row.Edit.Mode == "skip" ? "on" : "")" @onclick='() => SetRowMode(row, "skip")'>Skip</button>
+                                        <button class="seg @(row.Edit.Mode == "color" ? "on" : "")" @onclick='() => SetRowMode(row, "color")'>Color</button>
+                                        <button class="seg @(row.Edit.Mode == "white" ? "on" : "")" @onclick='() => SetRowMode(row, "white")'>White</button>
+                                        <button class="seg @(row.Edit.Mode == "off" ? "on" : "")" @onclick='() => SetRowMode(row, "off")'>Off</button>
+                                    </div>
+
+                                    @if (row.Edit.Mode == "color")
+                                    {
+                                        <div class="swatch-grid" style="margin-top:1rem">
+                                            @foreach (var (hex, name) in Moods)
+                                            {
+                                                <button class="swatch @(string.Equals(hex, row.Edit.Color, StringComparison.OrdinalIgnoreCase) ? "picked" : "")"
+                                                        style="background:@hex; --swc:@hex" title="@name" aria-label="@name"
+                                                        @onclick="() => row.Edit.Color = hex"></button>
+                                            }
+                                            <input type="color" value="@row.Edit.Color" title="Custom color"
+                                                   @onchange="e => row.Edit.Color = e.Value?.ToString() ?? row.Edit.Color" />
+                                        </div>
+                                        <div class="slider-row">
+                                            <span class="slider-ico">🔅</span>
+                                            <input type="range" min="1" max="100" value="@row.Edit.Brightness"
+                                                   @onchange="e => SetRowBrightness(row, e)" aria-label="Brightness" />
+                                            <span class="slider-val">@row.Edit.Brightness%</span>
+                                        </div>
+                                    }
+                                    else if (row.Edit.Mode == "white")
+                                    {
+                                        <div class="slider-row">
+                                            <span class="slider-ico">🕯️</span>
+                                            <input type="range" min="0" max="100" value="@row.Edit.Temperature"
+                                                   @onchange="e => SetRowTemperature(row, e)" aria-label="Color temperature" />
+                                            <span class="slider-ico">❄️</span>
+                                        </div>
+                                        <div class="slider-row">
+                                            <span class="slider-ico">🔅</span>
+                                            <input type="range" min="1" max="100" value="@row.Edit.Brightness"
+                                                   @onchange="e => SetRowBrightness(row, e)" aria-label="Brightness" />
+                                            <span class="slider-val">@row.Edit.Brightness%</span>
+                                        </div>
+                                    }
+                                    else if (row.Edit.Mode == "off")
+                                    {
+                                        <p class="hint" style="margin-top:0.8rem">This light is switched off.</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="hint" style="margin-top:0.8rem">This light is left untouched.</p>
+                                    }
+
+                                    @if (row.Edit.Mode is "color" or "white")
+                                    {
+                                        <p class="kgroup-title">Effect</p>
+                                        <div class="chip-row">
+                                            @foreach (var (type, label) in Effects)
+                                            {
+                                                <button class="chip @(row.Edit.Effect.Type == type ? "on" : "")"
+                                                        @onclick="() => SetEffect(row, type)">@label</button>
+                                            }
+                                        </div>
+
+                                        @if (row.Edit.Effect.Type != "none")
+                                        {
+                                            <div class="slider-row">
+                                                <span class="slider-ico">🏃</span>
+                                                <input type="range" min="1" max="10" value="@row.Edit.Effect.Speed"
+                                                       @onchange="e => SetEffectSpeed(row, e)" aria-label="Speed" />
+                                                <span class="slider-val">@row.Edit.Effect.Speed</span>
+                                            </div>
+                                            <div class="slider-row">
+                                                <span class="slider-ico">🔆</span>
+                                                <input type="range" min="1" max="10" value="@row.Edit.Effect.Intensity"
+                                                       @onchange="e => SetEffectIntensity(row, e)" aria-label="Intensity" />
+                                                <span class="slider-val">@row.Edit.Effect.Intensity</span>
+                                            </div>
+
+                                            @if (row.Edit.Effect.Type == "drift")
+                                            {
+                                                <p class="hint" style="margin-top:0.6rem">Tap colors to build a palette (2–4). Drift blends between them.</p>
+                                                @if (row.Edit.Effect.Colors.Count > 0)
+                                                {
+                                                    <div class="palette-chips">
+                                                        @foreach (var c in row.Edit.Effect.Colors)
+                                                        {
+                                                            <span class="pal-chip">
+                                                                <span class="pal-dot" style="background:@c"></span>@c.ToUpperInvariant()
+                                                                <button class="pal-x" aria-label="Remove color" @onclick="() => RemovePaletteColor(row, c)">✕</button>
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                }
+                                                <div class="swatch-grid" style="margin-top:0.6rem">
+                                                    @foreach (var (hex, name) in Moods)
+                                                    {
+                                                        <button class="swatch" style="background:@hex; --swc:@hex" title="@name" aria-label="@name"
+                                                                @onclick="() => AddPaletteColor(row, hex)"></button>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    }
+
+                                    <div class="btn-row" style="margin-top:1rem">
+                                        <button class="btn small" @onclick="() => CopyToAll(row)">Copy to all lights</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <h2 class="rune">Music</h2>
+    <div class="panel">
+        <div class="segmented">
+            <button class="seg @(_music == MusicChoice.None ? "on" : "")" @onclick="() => _music = MusicChoice.None">None</button>
+            <button class="seg @(_music == MusicChoice.Play ? "on" : "")" @onclick="() => _music = MusicChoice.Play">Play</button>
+            <button class="seg @(_music == MusicChoice.Pause ? "on" : "")" @onclick="() => _music = MusicChoice.Pause">Pause</button>
+        </div>
+
+        @if (_music == MusicChoice.Play)
+        {
+            @if (_playlists is null)
+            {
+                <p class="empty-note">Reading the songbook…</p>
+            }
+            else if (_playlists.Count == 0)
+            {
+                <p class="hint" style="margin-top:1rem">Kenku FM isn't answering — enter a playlist / track id by hand.</p>
+                <div class="field" style="margin-top:0.6rem;margin-bottom:0">
+                    <input type="text" value="@_manualPlayId" @oninput="e => _manualPlayId = e.Value?.ToString() ?? string.Empty"
+                           placeholder="playlist or track id" />
+                </div>
+            }
+            else
+            {
+                <div class="klist" style="margin-top:1rem">
+                    @foreach (var group in _playlists)
+                    {
+                        <p class="kgroup-title">@group.Title</p>
+                        <button class="krow @(_playId == group.Id ? "selected" : "")" @onclick="() => _playId = group.Id">
+                            <span class="krow-ico">📁</span>
+                            <span class="krow-title">Play all — @group.Title</span>
+                        </button>
+                        @foreach (var track in group.Items)
+                        {
+                            <button class="krow @(_playId == track.Id ? "selected" : "")" @onclick="() => _playId = track.Id">
+                                <span class="krow-ico">♪</span>
+                                <span class="krow-title">@track.Title</span>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+
+            <div class="chip-row" style="margin-top:1rem">
+                <button class="chip @(_setVolume ? "on" : "")" @onclick="() => _setVolume = !_setVolume">Set volume</button>
+            </div>
+            @if (_setVolume)
+            {
+                <div class="slider-row">
+                    <span class="slider-ico">🔉</span>
+                    <input type="range" min="0" max="100" value="@_volumePercent"
+                           @onchange="e => SetVolume(e)" aria-label="Volume" />
+                    <span class="slider-val">@_volumePercent%</span>
+                </div>
+            }
+        }
+        else if (_music == MusicChoice.Pause)
+        {
+            <p class="hint" style="margin-top:0.8rem">The scene pauses whatever is playing.</p>
+        }
+    </div>
+
+    <h2 class="rune">Sound Effects</h2>
+    <div class="panel">
+        @if (_boards is null)
+        {
+            <p class="empty-note">Uncorking the sound vials…</p>
+        }
+        else if (_boards.Count == 0)
+        {
+            <p class="hint">Kenku FM isn't answering — enter sound ids separated by commas.</p>
+            <div class="field" style="margin-top:0.6rem;margin-bottom:0">
+                <input type="text" value="@_manualSounds" @oninput="e => _manualSounds = e.Value?.ToString() ?? string.Empty"
+                       placeholder="id1, id2, id3" />
+            </div>
+        }
+        else
+        {
+            @foreach (var board in _boards)
+            {
+                <p class="kgroup-title">@board.Title</p>
+                <div class="chip-row">
+                    @foreach (var sound in board.Items)
+                    {
+                        <button class="chip @(_soundIds.Contains(sound.Id) ? "on" : "")"
+                                @onclick="() => ToggleSound(sound.Id)">@sound.Title</button>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <h2 class="rune">Save</h2>
+    <div class="btn-row">
+        <button class="btn primary" @onclick="() => Save(test: false)" disabled="@_busy">Save</button>
+        <button class="btn" @onclick="() => Save(test: true)" disabled="@_busy">Save &amp; Test</button>
+    </div>
+    @if (!_isNew)
+    {
+        <div class="btn-row" style="margin-top:0.7rem">
+            <button class="btn danger" @onclick="DeleteTapped" disabled="@_busy">
+                @(_confirmDelete ? "Really delete?" : "Delete scene")
+            </button>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string? SceneId { get; set; }
+
+    private enum LightScope { None, All, PerLight }
+    private enum LightMode { Color, White, Off }
+    private enum MusicChoice { None, Play, Pause }
+
+    // One editable per-light row: the persisted fields plus registry display metadata.
+    private class LightRow
+    {
+        public string Key = "";
+        public string Name = "";
+        public string Provider = "tuya";
+        public bool Known = true;
+        public bool Expanded;
+        public SceneLightEdit Edit = new();
+    }
+
+    private static readonly string[] Emojis =
+        ["🍺", "🔥", "🌲", "⚔️", "🕯️", "🌊", "👻", "💰", "🎻", "🌙", "⛺", "🐉", "❄️", "🏰", "🎲"];
+
+    private static readonly (string Type, string Label)[] Effects =
+    [
+        ("none", "None"),
+        ("flicker", "🕯️ Flicker"),
+        ("glow", "✨ Glow"),
+        ("storm", "⛈️ Storm"),
+        ("drift", "🌀 Drift"),
+    ];
+
+    private static readonly (string Hex, string Name)[] Moods =
+    [
+        ("#ff8c2a", "Candlelight"),
+        ("#ff1e1e", "Blood / combat"),
+        ("#3a7a4a", "Forest / dungeon"),
+        ("#7a3aff", "Arcane"),
+        ("#4aa8ff", "Ice / water"),
+        ("#ff4a8c", "Fey"),
+        ("#ffd84a", "Treasure"),
+        ("#20e0c0", "Poison / ghost"),
+    ];
+
+    private bool _loading = true;
+    private bool _busy;
+    private bool _isNew;
+    private SceneEdit _edit = new();
+    private List<string> _existingIds = [];
+
+    // identity
+    private string _emoji = "";
+    private string _label = "";
+
+    // lights
+    private LightScope _scope = LightScope.None;
+    private LightMode _lightMode = LightMode.Color;
+    private string _color = "#ff8c2a";
+    private int _brightness = 80;
+    private int _temperature = 40;
+    private List<RegisteredLightInfo> _registry = [];
+    private List<LightRow> _perLight = [];
+
+    // music
+    private MusicChoice _music = MusicChoice.None;
+    private string? _playId;
+    private string _manualPlayId = "";
+    private bool _setVolume;
+    private int _volumePercent = 50;
+    private List<KenkuGroup>? _playlists;
+
+    // sfx
+    private HashSet<string> _soundIds = [];
+    private string _manualSounds = "";
+    private List<KenkuGroup>? _boards;
+
+    // delete
+    private bool _confirmDelete;
+    private Timer? _confirmTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isNew = string.IsNullOrEmpty(SceneId);
+
+        var scenes = await Api.GetScenesAsync();
+        _existingIds = scenes.Select(s => s.Id).ToList();
+        _registry = await Api.GetRegisteredLightsAsync();
+
+        if (!_isNew)
+        {
+            var scene = await Api.GetSceneAsync(SceneId!);
+            if (scene is null)
+            {
+                Ui.ReportError($"Couldn't load scene \"{SceneId}\".");
+                Nav.NavigateTo("");
+                return;
+            }
+            LoadFrom(scene);
+        }
+
+        // Kenku lists are optional — offline just falls back to the manual inputs.
+        _playlists = await Api.GetPlaylistsAsync();
+        _boards = await Api.GetSoundboardsAsync();
+        _loading = false;
+    }
+
+    private void LoadFrom(SceneDto scene)
+    {
+        _edit.Id = scene.Id;
+        (_emoji, _label) = SplitName(scene.Name);
+
+        // Per-light entries win over the legacy single block (matching the server).
+        if (scene.Lights is { Count: > 0 } sceneLights)
+        {
+            _scope = LightScope.PerLight;
+            BuildPerLightRows(sceneLights);
+        }
+        else if (scene.Light is { } light)
+        {
+            _scope = LightScope.All;
+            if (light.Color is { } color)
+            {
+                _lightMode = LightMode.Color;
+                _color = color;
+                _brightness = light.Brightness ?? 80;
+            }
+            else if (light.Power == false)
+            {
+                _lightMode = LightMode.Off;
+            }
+            else
+            {
+                _lightMode = LightMode.White;
+                _temperature = light.Temperature ?? 40;
+                _brightness = light.Brightness ?? 80;
+            }
+        }
+
+        if (scene.Music is { } music)
+        {
+            if (music.Pause)
+            {
+                _music = MusicChoice.Pause;
+            }
+            else if (music.PlayId is { } playId)
+            {
+                _music = MusicChoice.Play;
+                _playId = playId;
+                _manualPlayId = playId;
+                if (music.Volume is { } vol)
+                {
+                    _setVolume = true;
+                    _volumePercent = (int)Math.Round(vol * 100);
+                }
+            }
+        }
+
+        _soundIds = [.. scene.SoundEffects ?? []];
+        _manualSounds = string.Join(", ", _soundIds); // keeps ids if Kenku is offline (manual fallback shown)
+    }
+
+    private void ToggleEmoji(string e) => _emoji = _emoji == e ? "" : e;
+
+    private void OnLabelInput(ChangeEventArgs e) => _label = e.Value?.ToString() ?? "";
+
+    private void SetBrightness(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) _brightness = v;
+    }
+
+    private void SetTemperature(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) _temperature = v;
+    }
+
+    private void SetVolume(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) _volumePercent = v;
+    }
+
+    private void ToggleSound(string id)
+    {
+        if (!_soundIds.Add(id)) _soundIds.Remove(id);
+    }
+
+    private string ComposedName =>
+        string.IsNullOrEmpty(_emoji) ? _label.Trim() : $"{_emoji} {_label.Trim()}";
+
+    // On create the id follows the label; on edit it's fixed.
+    private string CurrentId => _isNew ? MakeUniqueId(Slugify(_label)) : _edit.Id;
+
+    private async Task Save(bool test)
+    {
+        if (string.IsNullOrWhiteSpace(_label))
+        {
+            Ui.ReportError("Give the scene a name first.");
+            return;
+        }
+
+        var id = CurrentId;
+        if (string.IsNullOrEmpty(id))
+        {
+            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            return;
+        }
+
+        // Drift needs at least two palette colors — catch it before the server 400s.
+        if (_scope == LightScope.PerLight)
+        {
+            var badDrift = _perLight.FirstOrDefault(r =>
+                r.Edit.Mode is "color" or "white" && r.Edit.Effect.Type == "drift" && r.Edit.Effect.Colors.Count < 2);
+            if (badDrift is not null)
+            {
+                Ui.ReportError($"“{badDrift.Name}”: the Drift effect needs at least 2 colors.");
+                return;
+            }
+        }
+
+        _edit.Id = id;
+        _edit.Name = ComposedName;
+        (_edit.Light, _edit.Lights) = BuildLights();
+        _edit.Music = BuildMusic();
+        _edit.SoundEffects = BuildSounds();
+
+        _busy = true;
+        try
+        {
+            var (_, error) = await Api.SaveSceneAsync(id, _edit);
+            if (error is not null)
+            {
+                Ui.ReportError(error);
+                return;
+            }
+
+            if (test)
+            {
+                var result = await Api.ActivateSceneAsync(id);
+                if (result is null) return;
+                if (result.FullySucceeded)
+                {
+                    Ui.ReportOk($"Saved — scene \"{id}\" is live");
+                }
+                else
+                {
+                    var problems = new[] { ("light", result.Light), ("music", result.Music), ("sfx", result.SoundEffects) }
+                        .Where(p => p.Item2.StartsWith("error"))
+                        .Select(p => $"{p.Item1}: {p.Item2[7..]}");
+                    Ui.ReportError($"Saved, but partially applied. {string.Join(" | ", problems)}");
+                }
+                // On create, keep editing the freshly-made scene rather than re-creating it.
+                if (_isNew)
+                    Nav.NavigateTo($"editor/{id}");
+            }
+            else
+            {
+                Ui.ReportOk($"Saved scene \"{id}\"");
+                Nav.NavigateTo("");
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Legacy single block for "All lights"; the per-light list otherwise. Per-light with only skips
+    // (or an empty registry) collapses to "leave alone": no legacy block and an empty list.
+    private (LightEdit? Light, List<SceneLightEdit> Lights) BuildLights() => _scope switch
+    {
+        LightScope.All => (_lightMode switch
+        {
+            LightMode.Color => new LightEdit { Power = true, Color = _color, Brightness = _brightness },
+            LightMode.White => new LightEdit { Power = true, Temperature = _temperature, Brightness = _brightness },
+            _ => new LightEdit { Power = false },
+        }, []),
+        LightScope.PerLight => (null, _perLight.Select(r => r.Edit).ToList()),
+        _ => (null, []),
+    };
+
+    private void SetScope(LightScope scope)
+    {
+        _scope = scope;
+        if (scope == LightScope.PerLight && _perLight.Count == 0 && _registry.Count > 0)
+            BuildPerLightRows(null);
+    }
+
+    // Build one row per registered light (pre-filled from the scene where present), then any scene
+    // entries whose light is no longer registered, flagged so the user notices.
+    private void BuildPerLightRows(List<SceneLightDto>? sceneLights)
+    {
+        _perLight = [];
+        foreach (var reg in _registry)
+        {
+            var entry = sceneLights?.FirstOrDefault(l => string.Equals(l.LightKey, reg.Key, StringComparison.OrdinalIgnoreCase));
+            _perLight.Add(MakeRow(reg.Key, reg.Name, reg.Provider, entry, known: true));
+        }
+        if (sceneLights is not null)
+            foreach (var l in sceneLights)
+                if (!_registry.Any(r => string.Equals(r.Key, l.LightKey, StringComparison.OrdinalIgnoreCase)))
+                    _perLight.Add(MakeRow(l.LightKey, l.LightKey, "?", l, known: false));
+    }
+
+    private static LightRow MakeRow(string key, string name, string provider, SceneLightDto? entry, bool known)
+    {
+        var edit = new SceneLightEdit { LightKey = key };
+        if (entry is not null)
+        {
+            if (entry.Color is { } color) { edit.Mode = "color"; edit.Color = color; edit.Brightness = entry.Brightness ?? 80; }
+            else if (entry.Power == false) { edit.Mode = "off"; }
+            else { edit.Mode = "white"; edit.Temperature = entry.Temperature ?? 40; edit.Brightness = entry.Brightness ?? 80; }
+
+            if (entry.Effect is { } fx)
+                edit.Effect = new EffectEdit { Type = fx.Type, Speed = fx.Speed, Intensity = fx.Intensity, Colors = [.. fx.Colors ?? []] };
+        }
+        return new LightRow { Key = key, Name = name, Provider = provider, Known = known, Edit = edit };
+    }
+
+    private void SetRowMode(LightRow row, string mode) => row.Edit.Mode = mode;
+
+    private void SetRowBrightness(LightRow row, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) row.Edit.Brightness = v;
+    }
+
+    private void SetRowTemperature(LightRow row, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) row.Edit.Temperature = v;
+    }
+
+    private void SetEffect(LightRow row, string type) => row.Edit.Effect.Type = type;
+
+    private void SetEffectSpeed(LightRow row, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) row.Edit.Effect.Speed = v;
+    }
+
+    private void SetEffectIntensity(LightRow row, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v)) row.Edit.Effect.Intensity = v;
+    }
+
+    private void AddPaletteColor(LightRow row, string hex)
+    {
+        var colors = row.Edit.Effect.Colors;
+        if (colors.Count >= 4 || colors.Any(c => c.Equals(hex, StringComparison.OrdinalIgnoreCase))) return;
+        colors.Add(hex);
+    }
+
+    private void RemovePaletteColor(LightRow row, string hex) => row.Edit.Effect.Colors.Remove(hex);
+
+    // Clone this row's settings + effect onto every other row (each keeps its own light key).
+    private void CopyToAll(LightRow src)
+    {
+        foreach (var row in _perLight)
+        {
+            if (ReferenceEquals(row, src)) continue;
+            row.Edit.Mode = src.Edit.Mode;
+            row.Edit.Color = src.Edit.Color;
+            row.Edit.Brightness = src.Edit.Brightness;
+            row.Edit.Temperature = src.Edit.Temperature;
+            row.Edit.Effect = new EffectEdit
+            {
+                Type = src.Edit.Effect.Type,
+                Speed = src.Edit.Effect.Speed,
+                Intensity = src.Edit.Effect.Intensity,
+                Colors = [.. src.Edit.Effect.Colors],
+            };
+        }
+        Ui.ReportOk("Copied to every light");
+    }
+
+    private static string ProviderLabel(string provider) => provider switch
+    {
+        "hue" => "Hue",
+        "tuya" => "Tuya",
+        _ => "?",
+    };
+
+    private static string EffectLabel(string type) =>
+        Effects.FirstOrDefault(e => e.Type == type).Label ?? "";
+
+    private static string TempWord(int t) => t < 34 ? "warm" : t > 66 ? "cold" : "neutral";
+
+    // Collapsed one-line summary, e.g. "🕯️ Flicker · #FF8C2A 80%" or "White · warm 60%" or "Skip".
+    private static string Summary(LightRow row)
+    {
+        var e = row.Edit;
+        var fx = e.Effect.Type == "none" ? "" : $"{EffectLabel(e.Effect.Type)} · ";
+        return e.Mode switch
+        {
+            "color" => $"{fx}{e.Color.ToUpperInvariant()} {e.Brightness}%",
+            "white" => $"{fx}White · {TempWord(e.Temperature)} {e.Brightness}%",
+            "off" => "Off",
+            _ => "Skip",
+        };
+    }
+
+    private MusicEdit? BuildMusic() => _music switch
+    {
+        MusicChoice.Pause => new MusicEdit { Pause = true },
+        MusicChoice.Play => new MusicEdit
+        {
+            PlayId = string.IsNullOrWhiteSpace(_playId) ? NullIfBlank(_manualPlayId) : _playId,
+            Volume = _setVolume ? _volumePercent / 100.0 : null,
+        },
+        _ => null,
+    };
+
+    private List<string> BuildSounds()
+    {
+        if (_boards is { Count: > 0 })
+            return [.. _soundIds];
+        return [.. _manualSounds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+    }
+
+    private async Task DeleteTapped()
+    {
+        if (!_confirmDelete)
+        {
+            _confirmDelete = true;
+            _confirmTimer?.Dispose();
+            _confirmTimer = new Timer(_ => InvokeAsync(() => { _confirmDelete = false; StateHasChanged(); }),
+                null, 3000, Timeout.Infinite);
+            return;
+        }
+
+        _confirmTimer?.Dispose();
+        _confirmDelete = false;
+        _busy = true;
+        try
+        {
+            var (ok, error) = await Api.DeleteSceneAsync(_edit.Id);
+            if (ok)
+            {
+                Ui.ReportOk($"Deleted scene \"{_edit.Id}\"");
+                Nav.NavigateTo("");
+            }
+            else
+            {
+                Ui.ReportError(error ?? "Delete failed.");
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string MakeUniqueId(string baseId)
+    {
+        if (string.IsNullOrEmpty(baseId)) return "";
+        var id = baseId;
+        var n = 2;
+        while (_existingIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+            id = $"{baseId}-{n++}";
+        return id;
+    }
+
+    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string Slugify(string label)
+    {
+        var sb = new StringBuilder();
+        foreach (var c in label.Trim().ToLowerInvariant())
+        {
+            if (char.IsAsciiLetterOrDigit(c)) sb.Append(c);
+            else if (c is ' ' or '-' or '_' && sb.Length > 0 && sb[^1] != '-') sb.Append('-');
+        }
+        return sb.ToString().Trim('-');
+    }
+
+    // "🍺 Tavern" -> ("🍺", "Tavern"); a name with no leading symbol keeps an empty emoji.
+    private static (string Emoji, string Label) SplitName(string name)
+    {
+        var trimmed = name.Trim();
+        var space = trimmed.IndexOf(' ');
+        if (space > 0 && trimmed[..space].Any(c => c > (char)0x2000))
+            return (trimmed[..space], trimmed[(space + 1)..]);
+        return ("", trimmed);
+    }
+
+    public void Dispose() => _confirmTimer?.Dispose();
+}

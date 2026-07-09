@@ -17,6 +17,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             scene.Property(s => s.Id).UseCollation("NOCASE");
             scene.OwnsOne(s => s.Light, b => b.ToJson());
             scene.OwnsOne(s => s.Music, b => b.ToJson());
+            scene.OwnsMany(s => s.Lights, lights =>
+            {
+                lights.ToJson();
+                lights.OwnsOne(l => l.Effect);
+            });
         });
 
         modelBuilder.Entity<LightingConfig>(config =>
@@ -25,6 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             config.Property(c => c.Id).ValueGeneratedNever();
             config.OwnsOne(c => c.Hue, b => b.ToJson());
             config.OwnsOne(c => c.Tuya, b => b.ToJson());
+            config.OwnsMany(c => c.Lights, b => b.ToJson());
             config.Navigation(c => c.Hue).IsRequired();
             config.Navigation(c => c.Tuya).IsRequired();
         });

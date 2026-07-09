@@ -268,6 +268,34 @@ h2.rune::after { content: ""; flex: 1; height: 1px; background: linear-gradient(
 }
 .scene-card.busy { opacity: 0.55; pointer-events: none; }
 
+/* small corner affordance to open the editor without activating */
+.scene-card .card-edit {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    font-size: 1rem;
+    color: var(--ink-dim);
+    border-bottom-left-radius: 12px;
+    z-index: 2;
+    transition: color 0.2s, background 0.2s;
+}
+.scene-card .card-edit:hover { color: var(--ember); background: rgba(232, 163, 61, 0.08); }
+.scene-card .card-edit:active { transform: scale(0.9); }
+
+/* dashed "add" tile at the end of the grid */
+.scene-card.ghost {
+    background: none;
+    border: 2px dashed var(--line-strong);
+    color: var(--ink-dim);
+    animation: none;
+}
+.scene-card.ghost .scene-emoji { color: var(--ember); }
+.scene-card.ghost:active { transform: scale(0.95); }
+
 @keyframes riseIn {
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: none; }
@@ -429,6 +457,185 @@ input[type="color"] {
     padding: 4px;
     cursor: pointer;
 }
+
+/* ---------- scene editor ---------- */
+/* segmented mode selector (Color / White / Turn off, None / Play / Pause) */
+.segmented {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.segmented .seg {
+    flex: 1;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--line);
+    color: var(--ink-dim);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    min-height: 52px;
+    padding: 0.7rem 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+.segmented .seg:last-child { border-right: none; }
+.segmented .seg.on {
+    color: var(--ember);
+    background: rgba(232, 163, 61, 0.1);
+    box-shadow: inset 0 0 12px rgba(232, 163, 61, 0.1);
+    font-weight: 700;
+}
+.segmented .seg:active { transform: scale(0.97); }
+
+/* emoji picker row */
+.emoji-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.emoji-pick {
+    width: 52px;
+    height: 52px;
+    font-size: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: transform 0.1s, border-color 0.2s, box-shadow 0.2s;
+}
+.emoji-pick:active { transform: scale(0.9); }
+.emoji-pick.picked {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 14px rgba(232, 163, 61, 0.25), inset 0 0 10px rgba(232, 163, 61, 0.1);
+}
+
+/* chosen playlist/track in the editor's pick list */
+.krow.selected {
+    border-color: var(--line-strong);
+    background: rgba(232, 163, 61, 0.1);
+}
+
+/* compact button variant for inline actions (registry add, copy-to-all) */
+.btn.small { min-height: 40px; padding: 0.5rem 0.9rem; font-size: 0.92rem; flex: 0 0 auto; }
+
+/* ---------- light registry (Settings) ---------- */
+.reg-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.reg-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.5rem 0.7rem;
+    min-height: 52px;
+}
+.reg-badge {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-dim);
+}
+.reg-badge.hue { color: #b9a0ff; border-color: rgba(122, 58, 255, 0.5); }
+.reg-badge.tuya { color: var(--ember); border-color: var(--line-strong); }
+.reg-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--bg-deep);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    min-height: 40px;
+    padding: 0.4rem 0.7rem;
+}
+.reg-name:focus { outline: none; border-color: var(--line-strong); }
+.reg-name-static { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-key { flex: 0 0 auto; color: var(--ink-dim); font-size: 0.82rem; }
+.reg-remove {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--danger);
+    cursor: pointer;
+}
+.reg-remove:active { transform: scale(0.9); }
+
+/* ---------- per-light rows (scene editor) ---------- */
+.light-rows { display: flex; flex-direction: column; gap: 0.6rem; }
+.light-row {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.02);
+}
+.light-row.open { border-color: var(--line-strong); }
+.light-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    text-align: left;
+    min-height: 56px;
+    padding: 0.6rem 0.8rem;
+    cursor: pointer;
+}
+.light-head:active { background: rgba(255, 255, 255, 0.05); }
+.light-name { flex: 0 0 auto; font-weight: 700; }
+.light-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    color: var(--ink-dim);
+    font-size: 0.88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.light-caret { flex: 0 0 auto; color: var(--ink-dim); width: 20px; text-align: center; }
+.light-body { padding: 0 0.8rem 0.9rem; border-top: 1px solid var(--line); }
+.light-body .segmented { margin-top: 0.9rem; }
+
+/* drift palette builder */
+.palette-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.pal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.25rem 0.4rem 0.25rem 0.5rem;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+}
+.pal-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
+.pal-x {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    border-radius: 50%;
+}
+.pal-x:active { transform: scale(0.85); color: var(--danger); }
 
 /* ---------- toast ---------- */
 .toast {
