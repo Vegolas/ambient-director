@@ -1,13 +1,13 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject UiState Ui
-@inject ApiClient Api
+@inject NavigationManager Nav
 
 <div class="shell">
     <header class="topbar">
         <h1>Scene Maker</h1>
         <div class="conn-dot @(Ui.Connected ? "" : "off")" title="@(Ui.Connected ? "API connected" : "API unreachable")"></div>
-        <button class="icon-btn" @onclick="OpenSettings" aria-label="Settings">⚙</button>
+        <button class="icon-btn" @onclick="@(() => Nav.NavigateTo("settings"))" aria-label="Settings">⚙</button>
     </header>
 
     <main class="page">
@@ -25,46 +25,12 @@
     {
         <div class="toast @(Ui.ToastIsError ? "error" : "")">@Ui.Toast</div>
     }
-
-    @if (_settingsOpen)
-    {
-        <div class="modal-back" @onclick="CloseSettings">
-            <div class="modal" @onclick:stopPropagation>
-                <h3>Settings</h3>
-                <label for="apikey">API key (only if the server has one configured)</label>
-                <input id="apikey" type="password" @bind="_apiKeyInput" placeholder="leave empty when not used" />
-                <div class="btn-row">
-                    <button class="btn primary" @onclick="SaveSettings">Save</button>
-                    <button class="btn" @onclick="CloseSettings">Cancel</button>
-                </div>
-                <p class="hint">The key is stored on this device only.</p>
-            </div>
-        </div>
-    }
 </div>
 
 @code {
-    private bool _settingsOpen;
-    private string? _apiKeyInput;
-
     protected override void OnInitialized() => Ui.Changed += OnUiChanged;
 
     private void OnUiChanged() => InvokeAsync(StateHasChanged);
-
-    private async Task OpenSettings()
-    {
-        _apiKeyInput = await Api.GetApiKeyAsync();
-        _settingsOpen = true;
-    }
-
-    private async Task SaveSettings()
-    {
-        await Api.SetApiKeyAsync(_apiKeyInput);
-        _settingsOpen = false;
-        Ui.ReportOk("Settings saved");
-    }
-
-    private void CloseSettings() => _settingsOpen = false;
 
     public void Dispose() => Ui.Changed -= OnUiChanged;
 }

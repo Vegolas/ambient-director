@@ -4,7 +4,7 @@
     {
       "name": "scene-maker",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "src/RpgSceneMaker.Api", "--no-build"],
+      "runtimeArgs": ["run", "--project", "src/RpgSceneMaker.Api/RpgSceneMaker.Api.csproj", "--no-build"],
       "port": 5252
     }
   ]

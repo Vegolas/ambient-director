@@ -1,0 +1,285 @@
+@page "/settings"
+@inject ApiClient Api
+@inject UiState Ui
+
+<PageTitle>Scene Maker — Settings</PageTitle>
+
+@if (_config is null)
+{
+    <p class="empty-note">@(_loadError ?? "Opening the workshop…")</p>
+}
+else
+{
+    <h2 class="rune">Light System</h2>
+    <div class="chip-row">
+        <button class="chip @(IsHue ? "" : "on")" @onclick="@(() => SetProvider("tuya"))">Tuya bulb</button>
+        <button class="chip @(IsHue ? "on" : "")" @onclick="@(() => SetProvider("hue"))">Philips Hue</button>
+    </div>
+
+    <h2 class="rune">Philips Hue</h2>
+    <div class="panel">
+        <div class="field">
+            <label for="bridge-ip">Bridge IP</label>
+            <div class="field-row">
+                <input id="bridge-ip" type="text" @bind="_config.Hue.BridgeIp" placeholder="e.g. 192.168.1.30" />
+                <button class="btn" @onclick="Discover" disabled="@_busy">Find</button>
+            </div>
+        </div>
+
+        @if (HueIsPaired)
+        {
+            <p class="status ok">✓ Paired with the bridge</p>
+            <div class="btn-row">
+                <button class="btn" @onclick="LoadHueLights" disabled="@_busy">Refresh lights</button>
+                <button class="btn" @onclick="TestLight" disabled="@_busy">Test (toggle)</button>
+                <button class="btn danger" @onclick="ForgetHue" disabled="@_busy">Forget pairing</button>
+            </div>
+
+            @if (_hueLights is not null)
+            {
+                <p class="hint" style="margin-top:1rem">Lights the panel and scenes control (none checked = all lights):</p>
+                <div class="klist">
+                    @foreach (var light in _hueLights)
+                    {
+                        <label class="krow check @(_config.Hue.LightIds.Contains(light.Id) ? "playing" : "")">
+                            <input type="checkbox"
+                                   checked="@_config.Hue.LightIds.Contains(light.Id)"
+                                   @onchange="e => ToggleLight(light.Id, e)" />
+                            <span class="krow-ico">@(light.Reachable ? "💡" : "⚠️")</span>
+                            <span class="krow-title">@light.Name <small class="hint">@light.Type@(light.Reachable ? "" : " — unreachable")</small></span>
+                        </label>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <p class="status">Not paired yet.</p>
+            <ol class="hint steps">
+                <li>Fill in the bridge IP (or tap <em>Find</em>).</li>
+                <li><strong>Press the round link button</strong> on top of the Hue Bridge.</li>
+                <li>Tap <em>Pair</em> below within 30 seconds.</li>
+            </ol>
+            <div class="btn-row">
+                <button class="btn primary big" @onclick="Pair" disabled="@(_busy || string.IsNullOrWhiteSpace(_config.Hue.BridgeIp))">Pair with bridge</button>
+            </div>
+        }
+
+        @if (_hueStatus is not null)
+        {
+            <p class="status @(_hueStatusIsError ? "err" : "ok")">@_hueStatus</p>
+        }
+
+        <div class="btn-row" style="margin-top:1rem">
+            <button class="btn primary" @onclick="SaveConfig" disabled="@_busy">Save Hue settings</button>
+        </div>
+    </div>
+
+    <h2 class="rune">Tuya Bulb</h2>
+    <div class="panel">
+        <div class="field">
+            <label for="tuya-ip">Bulb IP</label>
+            <div class="field-row">
+                <input id="tuya-ip" type="text" @bind="_config.Tuya.Ip" placeholder="e.g. 192.168.1.41" />
+                <button class="btn" @onclick="ScanTuya" disabled="@_busy">Scan</button>
+            </div>
+        </div>
+        <div class="field">
+            <label for="tuya-id">Device id</label>
+            <input id="tuya-id" type="text" @bind="_config.Tuya.DeviceId" />
+        </div>
+        <div class="field">
+            <label for="tuya-key">Local key</label>
+            <input id="tuya-key" type="password" @bind="_config.Tuya.LocalKey" />
+        </div>
+        <div class="field-row">
+            <div class="field" style="flex:1">
+                <label for="tuya-proto">Protocol</label>
+                <select id="tuya-proto" @bind="_config.Tuya.ProtocolVersion">
+                    <option value="3.3">3.3 (default)</option>
+                    <option value="3.1">3.1 (very old)</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1">
+                <label for="tuya-dp">DP layout</label>
+                <select id="tuya-dp" @bind="_config.Tuya.DpProfile">
+                    <option value="v2">v2 — DPs 20-24</option>
+                    <option value="v1">v1 — DPs 1-5 (old)</option>
+                </select>
+            </div>
+        </div>
+        @if (_tuyaStatus is not null)
+        {
+            <p class="status">@_tuyaStatus</p>
+        }
+        <div class="btn-row">
+            <button class="btn primary" @onclick="SaveConfig" disabled="@_busy">Save Tuya settings</button>
+        </div>
+        <p class="hint">The local key still comes from the Tuya IoT portal — see the README walkthrough.</p>
+    </div>
+
+    <h2 class="rune">This Device</h2>
+    <div class="panel">
+        <div class="field">
+            <label for="apikey">API key (only if the server has one configured)</label>
+            <input id="apikey" type="password" @bind="_apiKeyInput" placeholder="leave empty when not used" />
+        </div>
+        <div class="btn-row">
+            <button class="btn primary" @onclick="SaveApiKey">Save key on this device</button>
+        </div>
+    </div>
+}
+
+@code {
+    private LightingConfigDto? _config;
+    private string? _loadError;
+    private List<HueLightDto>? _hueLights;
+    private string? _hueStatus;
+    private bool _hueStatusIsError;
+    private string? _tuyaStatus;
+    private string? _apiKeyInput;
+    private bool _busy;
+
+    private bool IsHue => _config?.Provider.Equals("hue", StringComparison.OrdinalIgnoreCase) == true;
+    private bool HueIsPaired => !string.IsNullOrWhiteSpace(_config?.Hue.AppKey);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiKeyInput = await Api.GetApiKeyAsync();
+        var (config, error) = await Api.GetConfigAsync();
+        if (config is null)
+        {
+            _loadError = $"Could not load settings. {error}";
+            return;
+        }
+        _config = config;
+        if (HueIsPaired) await LoadHueLights();
+    }
+
+    private async Task SetProvider(string provider)
+    {
+        if (_config is null) return;
+        _config.Provider = provider;
+        if (await Api.SaveConfigAsync(_config))
+            Ui.ReportOk($"Scenes now control {(provider == "hue" ? "Philips Hue" : "the Tuya bulb")}");
+    }
+
+    private async Task SaveConfig()
+    {
+        if (_config is null) return;
+        if (await Api.SaveConfigAsync(_config))
+            Ui.ReportOk("Settings saved");
+    }
+
+    private async Task Discover()
+    {
+        _busy = true;
+        _hueStatus = "Searching for bridges…";
+        _hueStatusIsError = false;
+        StateHasChanged();
+        try
+        {
+            var (bridges, error) = await Api.DiscoverBridgesAsync();
+            if (bridges is { Count: > 0 })
+            {
+                _config!.Hue.BridgeIp = bridges[0].Ip;
+                _hueStatus = bridges.Count == 1
+                    ? $"Found bridge at {bridges[0].Ip}"
+                    : $"Found {bridges.Count} bridges, using {bridges[0].Ip}: {string.Join(", ", bridges.Select(b => b.Ip))}";
+            }
+            else
+            {
+                _hueStatus = error ?? "No bridge found — check that it is powered and on the same network, or type the IP manually.";
+                _hueStatusIsError = true;
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Pair()
+    {
+        if (_config is null) return;
+        _busy = true;
+        _hueStatus = "Pairing…";
+        _hueStatusIsError = false;
+        StateHasChanged();
+        try
+        {
+            var (registration, error) = await Api.RegisterHueAsync(_config.Hue.BridgeIp);
+            if (registration is null)
+            {
+                _hueStatus = error ?? "Pairing failed.";
+                _hueStatusIsError = true;
+                return;
+            }
+
+            _config.Hue.AppKey = registration.AppKey;
+            if (await Api.SaveConfigAsync(_config))
+            {
+                _hueStatus = "Paired and saved — pick your lights below.";
+                await LoadHueLights();
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task LoadHueLights()
+    {
+        if (_config is null || !HueIsPaired) return;
+        var (lights, error) = await Api.GetHueLightsAsync(_config.Hue.BridgeIp, _config.Hue.AppKey);
+        if (lights is null)
+        {
+            _hueStatus = error;
+            _hueStatusIsError = true;
+            return;
+        }
+        _hueLights = lights;
+    }
+
+    private void ToggleLight(string id, ChangeEventArgs e)
+    {
+        if (_config is null) return;
+        if (e.Value is true or "true") _config.Hue.LightIds.Add(id);
+        else _config.Hue.LightIds.Remove(id);
+    }
+
+    private async Task ForgetHue()
+    {
+        if (_config is null) return;
+        _config.Hue.AppKey = "";
+        _config.Hue.LightIds.Clear();
+        _hueLights = null;
+        if (await Api.SaveConfigAsync(_config))
+            Ui.ReportOk("Hue pairing removed");
+    }
+
+    private Task TestLight() => Api.CommandAsync("lights/toggle", "Toggled — did it blink?");
+
+    private async Task ScanTuya()
+    {
+        _busy = true;
+        _tuyaStatus = "Listening for Tuya broadcasts (8s)…";
+        StateHasChanged();
+        try
+        {
+            var (devices, error) = await Api.ScanTuyaAsync();
+            if (devices is { Count: > 0 })
+            {
+                _config!.Tuya.Ip = devices[0].Ip;
+                _config!.Tuya.DeviceId = devices[0].DeviceId;
+                _tuyaStatus = $"Found {devices.Count} device(s); using {devices[0].Ip} ({devices[0].DeviceId}).";
+            }
+            else
+            {
+                _tuyaStatus = error ?? "Nothing found. The bulb must be powered and on the same network.";
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveApiKey()
+    {
+        await Api.SetApiKeyAsync(_apiKeyInput);
+        Ui.ReportOk("API key saved on this device");
+    }
+}

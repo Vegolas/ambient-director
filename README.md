@@ -62,18 +62,16 @@ The response contains the `localKey` for every device on your account. Put `Ip`,
 
 ### 2b. Philips Hue (local control)
 
-1. Set `"Lighting": { "Provider": "hue" }` in [appsettings.json](src/RpgSceneMaker.Api/appsettings.json).
-2. Find your bridge: `http://localhost:5252/setup/hue/discover` (or look up its IP in the Hue app under *Settings → My Hue system*). Put it into `Hue:BridgeIp`.
-3. **Press the round link button on the Hue Bridge**, then within 30 seconds call:
+Everything happens in the control panel — open **⚙ Settings**:
 
-   ```
-   http://localhost:5252/setup/hue/register?bridgeIp=YOUR_BRIDGE_IP
-   ```
+1. Pick **Philips Hue** as the light system.
+2. Enter the bridge IP (or tap *Find* to auto-discover it).
+3. **Press the round link button on the Hue Bridge**, then tap *Pair with bridge* within 30 seconds. The app key is created and saved automatically.
+4. Tick the lights the panel and scenes should control (none ticked = all lights), tap *Save Hue settings*, then *Test (toggle)* to confirm.
 
-   The response contains your `appKey` — put it into `Hue:AppKey`. This is one-time; all control stays on your LAN.
-4. Optional: `http://localhost:5252/setup/hue/lights` lists your lights with ids. Put the ones the API should control into `Hue:LightIds` (e.g. `[ "1", "4" ]`). **Leave the list empty to control every light on the bridge.**
+Settings changed in the panel are written to `settings.local.json` next to the API (git-ignored, overrides `appsettings.json`) and apply immediately — no restart. The raw endpoints (`/setup/hue/discover`, `/setup/hue/register`, `/setup/hue/lights`, `GET|PUT /setup/config`) remain available for scripting.
 
-Tip: give the bridge a fixed IP (DHCP reservation in your router) so `Hue:BridgeIp` doesn't go stale.
+Tip: give the bridge a fixed IP (DHCP reservation in your router) so the saved address doesn't go stale.
 
 ### 3. Stream Deck
 
@@ -117,6 +115,7 @@ Edit [scenes.json](src/RpgSceneMaker.Api/scenes.json) (hot-reloaded — no resta
 | SFX | `/sfx/play?id=…`, `/sfx/stop?id=…`, `GET /sfx/sounds`, `GET /sfx/state` |
 | Setup (Tuya) | `GET /setup/scan?seconds=10`, `GET /setup/local-keys?accessId=…&apiSecret=…&deviceId=…&region=eu` |
 | Setup (Hue) | `GET /setup/hue/discover`, `GET /setup/hue/register?bridgeIp=…`, `GET /setup/hue/lights` |
+| Setup (config) | `GET /setup/config`, `PUT /setup/config` — read/update provider + Hue/Tuya settings at runtime (persisted to `settings.local.json`) |
 
 All command endpoints accept GET or POST; parameters go in the query string.
 
@@ -130,8 +129,10 @@ All command endpoints accept GET or POST; parameters go in the query string.
 | `Tuya:Ip / DeviceId / LocalKey` | Bulb connection (see setup above). |
 | `Tuya:ProtocolVersion` | `3.3` (default) or `3.1` for very old firmware. |
 | `Tuya:DpProfile` | `v2` (DPs 20–24, default) or `v1` (DPs 1–5, older bulbs). |
-| `Hue:BridgeIp / AppKey` | Hue Bridge connection (see setup 2b). |
+| `Hue:BridgeIp / AppKey` | Hue Bridge connection — set from the panel's Settings page (see 2b). |
 | `Hue:LightIds` | Hue lights to control; empty = all lights on the bridge. |
+
+Values saved from the panel live in `settings.local.json` (same folder, git-ignored) and override `appsettings.json`.
 | `Kenku:BaseUrl` | Kenku remote address, default `http://127.0.0.1:3333`. |
 | `Scenes:FilePath` | Scenes file location. |
 

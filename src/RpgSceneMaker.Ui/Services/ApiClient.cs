@@ -11,6 +11,34 @@ public record MusicDto(string? PlayId, double? Volume, bool Pause);
 public record ActivationDto(string Scene, string Light, string Music, string SoundEffects, bool FullySucceeded);
 public record ActiveSceneDto(string? Id, DateTimeOffset? ActivatedAt);
 
+// Mutable classes (not records) — the settings form binds inputs straight to them.
+public class TuyaConfigDto
+{
+    public string Ip { get; set; } = "";
+    public string DeviceId { get; set; } = "";
+    public string LocalKey { get; set; } = "";
+    public string ProtocolVersion { get; set; } = "3.3";
+    public string DpProfile { get; set; } = "v2";
+}
+
+public class HueConfigDto
+{
+    public string BridgeIp { get; set; } = "";
+    public string AppKey { get; set; } = "";
+    public List<string> LightIds { get; set; } = [];
+}
+
+public class LightingConfigDto
+{
+    public string Provider { get; set; } = "tuya";
+    public HueConfigDto Hue { get; set; } = new();
+    public TuyaConfigDto Tuya { get; set; } = new();
+}
+public record BridgeDto(string Id, string Ip);
+public record HueLightDto(string Id, string Name, string Type, bool On, bool Reachable);
+public record HueRegistrationDto(string BridgeIp, string AppKey, string Hint);
+public record DiscoveredTuyaDto(string Ip, string DeviceId, string ProtocolVersion, string? ProductKey);
+
 public record KenkuItem(string Id, string Title);
 public record KenkuGroup(string Id, string Title, List<KenkuItem> Items);
 public record MusicState(bool Playing, double Volume, bool Muted, bool Shuffle, string Repeat,
@@ -89,6 +117,63 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         {
             ReportTransportError(ex);
             return false;
+        }
+    }
+
+    // ---------- setup / configuration ----------
+
+    public Task<(LightingConfigDto? Result, string? Error)> GetConfigAsync() =>
+        FetchAsync<LightingConfigDto>(HttpMethod.Get, "setup/config");
+
+    public async Task<bool> SaveConfigAsync(LightingConfigDto config)
+    {
+        var (_, error) = await FetchAsync<LightingConfigDto>(HttpMethod.Put, "setup/config", config);
+        if (error is not null)
+        {
+            ui.ReportError(error);
+            return false;
+        }
+        return true;
+    }
+
+    public Task<(List<BridgeDto>? Result, string? Error)> DiscoverBridgesAsync() =>
+        FetchAsync<List<BridgeDto>>(HttpMethod.Get, "setup/hue/discover");
+
+    public Task<(HueRegistrationDto? Result, string? Error)> RegisterHueAsync(string bridgeIp) =>
+        FetchAsync<HueRegistrationDto>(HttpMethod.Post, $"setup/hue/register?bridgeIp={Uri.EscapeDataString(bridgeIp)}");
+
+    public Task<(List<HueLightDto>? Result, string? Error)> GetHueLightsAsync(string bridgeIp, string appKey) =>
+        FetchAsync<List<HueLightDto>>(HttpMethod.Get,
+            $"setup/hue/lights?bridgeIp={Uri.EscapeDataString(bridgeIp)}&appKey={Uri.EscapeDataString(appKey)}");
+
+    public Task<(List<DiscoveredTuyaDto>? Result, string? Error)> ScanTuyaAsync() =>
+        FetchAsync<List<DiscoveredTuyaDto>>(HttpMethod.Get, "setup/scan?seconds=8");
+
+    /// <summary>Request with an explicit error channel — the settings wizard shows failures inline.</summary>
+    private async Task<(T? Result, string? Error)> FetchAsync<T>(HttpMethod method, string path, object? body = null)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(method, path);
+            if (await GetApiKeyAsync() is { } key)
+                request.Headers.Add("X-Api-Key", key);
+            if (body is not null)
+                request.Content = JsonContent.Create(body, options: Json);
+
+            using var response = await http.SendAsync(request);
+            ui.SetConnected(true);
+            if (!response.IsSuccessStatusCode)
+                return (default, await ExtractProblemAsync(response));
+            return (await response.Content.ReadFromJsonAsync<T>(Json), null);
+        }
+        catch (TaskCanceledException)
+        {
+            return (default, "The request timed out — the device did not answer.");
+        }
+        catch (Exception ex)
+        {
+            ui.SetConnected(false);
+            return (default, $"API unreachable: {ex.Message}");
         }
     }
 

@@ -11,7 +11,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services.AddScoped(sp => new HttpClient
 {
     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
-    Timeout = TimeSpan.FromSeconds(10),
+    // Setup endpoints (Tuya scan, Hue pairing) block server-side for up to ~10s;
+    // stay well above that so the UI shows the server's error, not its own timeout.
+    Timeout = TimeSpan.FromSeconds(30),
 });
 builder.Services.AddSingleton<UiState>();
 builder.Services.AddScoped<ApiClient>();

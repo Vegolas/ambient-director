@@ -6,6 +6,9 @@ using RpgSceneMaker.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Settings saved from the UI land here and override appsettings.json; hot-reloaded on save.
+builder.Configuration.AddJsonFile(SettingsStore.FileName, optional: true, reloadOnChange: true);
+
 builder.Services.Configure<LightingOptions>(builder.Configuration.GetSection(LightingOptions.Section));
 builder.Services.Configure<TuyaOptions>(builder.Configuration.GetSection(TuyaOptions.Section));
 builder.Services.Configure<HueOptions>(builder.Configuration.GetSection(HueOptions.Section));
@@ -17,6 +20,7 @@ builder.Services.AddSingleton<TuyaSetupService>();
 builder.Services.AddHttpClient<HueLightService>(client => client.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddHttpClient<HueSetupService>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<SceneStore>();
+builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<CurrentState>();
 builder.Services.AddScoped<SceneActivator>();
 builder.Services.AddHttpClient<KenkuClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
@@ -231,6 +235,27 @@ setup.MapGet("/scan", (int? seconds, TuyaSetupService tuya) => tuya.ScanAsync(se
 // Pull local keys from your Tuya IoT cloud project (see README for the walkthrough).
 setup.MapGet("/local-keys", (string accessId, string apiSecret, string deviceId, string? region, TuyaSetupService tuya) =>
     tuya.GetLocalKeysAsync(accessId, apiSecret, deviceId, region ?? "eu"));
+
+// Read and update the lighting configuration (persisted to settings.local.json, applied without restart).
+setup.MapGet("/config", (IOptionsMonitor<LightingOptions> lighting, IOptionsMonitor<HueOptions> hue, IOptionsMonitor<TuyaOptions> tuya) =>
+{
+    var h = hue.CurrentValue;
+    var t = tuya.CurrentValue;
+    return new LightingConfigDto(
+        lighting.CurrentValue.Provider,
+        new HueConfigDto(h.BridgeIp, h.AppKey, h.LightIds),
+        new TuyaConfigDto(t.Ip, t.DeviceId, t.LocalKey, t.ProtocolVersion, t.DpProfile));
+});
+
+setup.MapPut("/config", (LightingConfigDto config, SettingsStore store) =>
+{
+    if (config.Hue is null || config.Tuya is null || config.Provider is null)
+        throw new ArgumentException("Provider, Hue and Tuya sections are all required.");
+    if (config.Provider.ToLowerInvariant() is not ("tuya" or "hue"))
+        throw new ArgumentException("Provider must be 'tuya' or 'hue'.");
+    store.Save(config);
+    return Results.Ok(config);
+});
 
 // Philips Hue: find the bridge, create an app key (press the bridge's link button first), list light ids.
 setup.MapGet("/hue/discover", (HueSetupService hue) => hue.DiscoverAsync());
