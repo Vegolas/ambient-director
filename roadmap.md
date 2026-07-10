@@ -1,0 +1,8 @@
+- UI prepared in Design
+- MCP + local AI (BYOK) for scene management
+- view transitions
+- events (ex: thunder)
+- soundboards as in, create named soundboard and add scenes, events, ligths etc to a single configurable screen
+- developer mode (showing logs etc)
+- light fx/effect creator (with timeline etc)
+- advanced event editor (timeline)
