@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in the panel or API isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - UI (Blazor panel)
+        - API
+        - Lights (Tuya / Hue)
+        - Music (Spotify)
+        - Soundboard
+        - Build / infra
+        - Not sure
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: From the panel's Logs tab or the server console.
+      render: text

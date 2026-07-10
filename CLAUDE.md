@@ -6,6 +6,20 @@ Local **.NET 10 Minimal API + Blazor WASM touch panel** that switches an RPG tab
 
 See [README.md](README.md) for the user-facing setup walkthrough (Tuya, Hue, Spotify, Stream Deck, iPad).
 
+## Task tracking
+
+The backlog lives in **GitHub Issues** ([Vegolas/rpg-scene-maker/issues](https://github.com/Vegolas/rpg-scene-maker/issues)),
+not in `roadmap.md`. Issues are the source of truth for what to work on.
+
+- **Labels**: every issue gets an area label (`area: ui`, `area: api`, `area: lights`, `area: music`,
+  `area: sound`, `area: infra`) plus a type (`enhancement` / `bug`). Add a new `area:` label rather than
+  overloading an existing one.
+- **Branches & PRs**: work on a `claude/<slug>` branch and open a PR that closes the issue
+  (`Closes #N` in the body). CI ([.github/workflows/build.yml](.github/workflows/build.yml)) runs
+  `dotnet build` on every PR — keep it green.
+- **`gh` is authenticated** in this environment, so read/create/update issues directly
+  (`gh issue list`, `gh issue create`, `gh issue develop`, …) instead of editing a file.
+
 ## Projects
 
 Two projects under `src/`; the solution file lives at
