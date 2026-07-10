@@ -333,6 +333,30 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         }
     }
 
+    // ---------- screens (shortcut boards) ----------
+
+    public async Task<List<ScreenDto>> GetScreensAsync() =>
+        await GetAsync<List<ScreenDto>>("screens/list") ?? [];
+
+    /// <summary>Upsert a screen; the editor shows the returned error inline / via toast.</summary>
+    public Task<(ScreenDto? Result, string? Error)> SaveScreenAsync(string id, ScreenEdit edit) =>
+        FetchAsync<ScreenDto>(HttpMethod.Put, $"screens/{Uri.EscapeDataString(id)}", edit.ToDto());
+
+    public async Task<(bool Ok, string? Error)> DeleteScreenAsync(string id)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Delete, $"screens/{Uri.EscapeDataString(id)}");
+            ui.SetConnected(true);
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ExtractProblemAsync(response));
+        }
+        catch (Exception ex)
+        {
+            ui.SetConnected(false);
+            return (false, $"API unreachable: {ex.Message}");
+        }
+    }
+
     // ---------- plumbing ----------
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path)

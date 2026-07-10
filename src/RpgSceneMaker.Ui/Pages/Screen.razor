@@ -1,0 +1,487 @@
+@page "/screens/{Id}"
+@implements IDisposable
+@inject ApiClient Api
+@inject UiState Ui
+@inject ViewTransition Vt
+
+<PageTitle>Scene Maker — @(_label is { Length: > 0 } l ? l : "Screen")</PageTitle>
+
+<div class="btn-row" style="margin-bottom:0.2rem">
+    <button class="btn small" @onclick='() => Vt.NavigateAsync("screens")'>← Screens</button>
+    @if (!_loading && !_notFound && !_arranging)
+    {
+        <button class="btn small" @onclick="StartArrange">✎ Arrange</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <p class="empty-note">Opening the board…</p>
+}
+else if (_notFound)
+{
+    <RuneHeading>Screen not found</RuneHeading>
+    <p class="empty-note">No screen with id “@Id”. It may have been deleted — head back to <a href="screens">Screens</a>.</p>
+}
+else if (_arranging)
+{
+    <RuneHeading>Arrange</RuneHeading>
+    <div class="panel">
+        <div class="emoji-row">
+            @foreach (var e in Palette.Emojis)
+            {
+                <button class="emoji-pick @(e == _emoji ? "picked" : "")" @onclick="() => ToggleEmoji(e)">@e</button>
+            }
+        </div>
+        <div class="field" style="margin-top:1rem;margin-bottom:0">
+            <label for="screen-label">Name</label>
+            <input id="screen-label" type="text" value="@_label" @oninput="e => _label = e.Value?.ToString() ?? string.Empty" />
+        </div>
+    </div>
+
+    <RuneHeading>Shortcuts</RuneHeading>
+    <div class="panel">
+        @if (_edit.Tiles.Count == 0)
+        {
+            <p class="hint" style="margin:0">No shortcuts yet — add some below.</p>
+        }
+        else
+        {
+            <div class="klist">
+                @foreach (var (tile, index) in _edit.Tiles.Select((t, i) => (t, i)))
+                {
+                    var v = View(tile);
+                    <div class="krow arrange @(v.Missing ? "missing" : "")">
+                        <span class="krow-ico">@v.Emoji</span>
+                        <span class="krow-title">@v.Label <small class="hint">@KindLabel(tile.Kind)</small></span>
+                        <button class="reorder" @onclick="() => Move(index, -1)" disabled="@(index == 0)" aria-label="Move up">▲</button>
+                        <button class="reorder" @onclick="() => Move(index, 1)" disabled="@(index == _edit.Tiles.Count - 1)" aria-label="Move down">▼</button>
+                        <button class="reorder danger" @onclick="() => RemoveAt(index)" aria-label="Remove shortcut">✕</button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <RuneHeading>Add a shortcut</RuneHeading>
+    <div class="panel">
+        <Segmented TValue="string" Options="AddOptions" Value="_addKind" ValueChanged="@(k => _addKind = k)" />
+
+        @if (_addKind is "scene" or "event" or "sound")
+        {
+            var items = PickerItems();
+            @if (items.Count == 0)
+            {
+                <p class="hint" style="margin-top:1rem">@EmptyHint()</p>
+            }
+            else
+            {
+                <div class="klist" style="margin-top:1rem">
+                    @foreach (var it in items)
+                    {
+                        var present = HasTile(_addKind, it.Id);
+                        <KRow Icon="@(present ? "☑" : "☐")" Title="@it.Label" Selected="present"
+                              OnClick="() => ToggleRef(_addKind, it.Id)" />
+                    }
+                </div>
+            }
+        }
+        else if (_addKind == "music")
+        {
+            <div class="field" style="margin-top:1rem;margin-bottom:0">
+                <label for="screen-search">Search tracks</label>
+                <div class="field-row">
+                    <input id="screen-search" type="text" @bind="_query" @bind:event="oninput"
+                           @onkeydown="OnSearchKeyDown" placeholder="song or artist…" />
+                    <button class="btn" @onclick="SearchAsync" disabled="@_searching">Search</button>
+                </div>
+            </div>
+            @if (_results is { Count: > 0 })
+            {
+                <div class="klist">
+                    @foreach (var t in _results)
+                    {
+                        <KRow Icon="♪" Title="@t.Name" Hint="@t.Artist"
+                              OnClick="@(() => AddMusic(t.Uri, string.IsNullOrEmpty(t.Artist) ? t.Name : $"{t.Name} — {t.Artist}"))" />
+                    }
+                </div>
+            }
+            <p class="kgroup-title">Playlists</p>
+            <PlaylistPicker Playlists="_playlists" OnPick="pl => AddMusic(pl.Uri, pl.Name)">
+                <EmptyContent>
+                    <p class="hint" style="margin:0">Connect Spotify in <a href="settings">Settings</a> to pick playlists, or search for a track above.</p>
+                </EmptyContent>
+            </PlaylistPicker>
+        }
+        else if (_addKind == "lights")
+        {
+            <p class="hint" style="margin-top:1rem">Adds a tile that resets the lights to the default you set in Settings.</p>
+            <div class="btn-row" style="margin-top:0.6rem">
+                <button class="btn" @onclick="AddResetLights">💡 Add reset-lights shortcut</button>
+            </div>
+        }
+    </div>
+
+    <RuneHeading>Save</RuneHeading>
+    <div class="btn-row">
+        <button class="btn primary" @onclick="Save" disabled="@_busy">Save</button>
+        <button class="btn" @onclick="CancelArrange" disabled="@_busy">Cancel</button>
+    </div>
+    <div class="btn-row" style="margin-top:0.7rem">
+        <button class="btn danger" @onclick="DeleteTapped" disabled="@_busy">
+            @(_confirmDelete ? "Really delete?" : "Delete screen")
+        </button>
+    </div>
+}
+else
+{
+    <RuneHeading>@(_label is { Length: > 0 } ? _label : "Screen")</RuneHeading>
+
+    @if (_edit.Tiles.Count == 0)
+    {
+        <p class="empty-note">This screen is empty — tap ✎ Arrange to add shortcuts.</p>
+    }
+    else
+    {
+        <div class="scene-grid">
+            @foreach (var (tile, index) in _edit.Tiles.Select((t, i) => (t, i)))
+            {
+                var v = View(tile);
+                <button class="scene-card @(v.Active ? "active" : "") @(v.Playing ? "playing" : "") @(v.Missing ? "missing" : "") @(_busyIndex == index ? "busy" : "")"
+                        style="animation-delay:@(index * 45)ms; --sc:@v.Color"
+                        @onclick="() => Tap(tile, index)">
+                    <span class="scene-swatch"></span>
+                    <span class="scene-emoji">@v.Emoji</span>
+                    <span class="scene-name">@v.Label</span>
+                </button>
+            }
+        </div>
+        <p class="hint" style="margin-top:1rem">Tap a shortcut to fire it. ✎ Arrange to add, reorder or remove.</p>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _notFound;
+    private bool _arranging;
+    private bool _busy;
+    private int? _busyIndex;
+    private bool _confirmDelete;
+
+    private ScreenEdit _edit = new();
+    private string _emoji = "";
+    private string _label = "";
+
+    // Snapshot of the last-saved name/tiles, restored when arranging is cancelled.
+    private string _savedName = "";
+    private List<ScreenTileDto> _savedTiles = [];
+
+    // Entities referenced by tiles — resolved for display and used by the add-picker.
+    private List<SceneDto>? _scenes;
+    private List<EventDto>? _events;
+    private List<SoundDto>? _sounds;
+    private List<SpotifyPlaylistDto>? _playlists;
+
+    // Live state for highlights (active scene + playing sounds), polled while the board is open.
+    private string? _activeSceneId;
+    private HashSet<string> _playingSoundIds = [];
+    private Timer? _timer;
+
+    // Add-a-shortcut picker.
+    private string _addKind = "scene";
+    private string _query = "";
+    private bool _searching;
+    private List<SpotifyTrackDto>? _results;
+
+    private static readonly (string, string)[] AddOptions =
+        [("scene", "🎲"), ("event", "⚡"), ("sound", "🔊"), ("music", "🎵"), ("lights", "💡")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var dto = (await Api.GetScreensAsync())
+            .FirstOrDefault(s => string.Equals(s.Id, Id, StringComparison.OrdinalIgnoreCase));
+        if (dto is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+        LoadFrom(dto);
+
+        // Referenced entities + the Spotify library (playlists are optional; empty/silent when not connected).
+        _scenes = await Api.GetScenesAsync();
+        _events = await Api.GetEventsAsync();
+        _sounds = await Api.GetSoundsAsync();
+        var (playlists, _) = await Api.GetSpotifyPlaylistsAsync();
+        _playlists = playlists ?? [];
+
+        await PollAsync();
+        _timer = new Timer(_ => _ = InvokeAsync(PollAsync), null, 2000, 2000);
+        _loading = false;
+    }
+
+    private void LoadFrom(ScreenDto dto)
+    {
+        _edit = new ScreenEdit { Id = dto.Id, Name = dto.Name, Tiles = [.. dto.Tiles ?? []] };
+        (_emoji, _label) = SceneNaming.SplitName(dto.Name);
+        _savedName = dto.Name;
+        _savedTiles = [.. _edit.Tiles];
+    }
+
+    private async Task PollAsync()
+    {
+        _activeSceneId = (await Api.GetActiveSceneAsync())?.Id;
+        _playingSoundIds = [.. await Api.GetPlayingSoundIdsAsync()];
+        StateHasChanged();
+    }
+
+    // ---------- tile display ----------
+
+    private record TileView(string Emoji, string Label, string Color, bool Missing, bool Active, bool Playing);
+
+    private TileView View(ScreenTileDto tile)
+    {
+        switch (tile.Kind)
+        {
+            case "scene":
+                var scene = _scenes?.FirstOrDefault(s => Eq(s.Id, tile.Ref));
+                if (scene is null) return Gone(tile);
+                var (se, sl) = SceneNaming.SplitName(scene.Name, "🎲", scene.Id);
+                return new TileView(se, sl, SceneSwatch(scene), false, Eq(_activeSceneId, scene.Id), false);
+            case "event":
+                var evt = _events?.FirstOrDefault(e => Eq(e.Id, tile.Ref));
+                if (evt is null) return Gone(tile);
+                var (ee, el) = SceneNaming.SplitName(evt.Name, "⚡", evt.Id);
+                return new TileView(ee, el, evt.Flash?.Color ?? "transparent", false, false, false);
+            case "sound":
+                var snd = _sounds?.FirstOrDefault(s => Eq(s.Id, tile.Ref));
+                if (snd is null) return Gone(tile);
+                var playing = _playingSoundIds.Contains(snd.Id);
+                return new TileView(playing ? "⏹" : snd.Loop ? "🔁" : "🔊", snd.Name, "transparent", false, false, playing);
+            case "music":
+                return new TileView("🎧", Label(tile), "transparent", false, false, false);
+            case "light-reset":
+                return new TileView("💡", "Reset lights", "transparent", false, false, false);
+            default:
+                return Gone(tile);
+        }
+    }
+
+    // A tile whose referenced entity no longer exists — shown so it can be removed in Arrange.
+    private static TileView Gone(ScreenTileDto tile) => new("⚠️", Label(tile), "transparent", true, false, false);
+
+    private static string Label(ScreenTileDto tile) => string.IsNullOrWhiteSpace(tile.Label) ? tile.Ref : tile.Label;
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "scene" => "scene", "event" => "event", "sound" => "sound",
+        "music" => "music", "light-reset" => "lights", _ => kind,
+    };
+
+    // Card tint: the scene's "all lights" colour, else its first per-light colour (as on the Scenes tab).
+    private static string SceneSwatch(SceneDto scene) =>
+        scene.Light?.Color ?? scene.Lights?.FirstOrDefault(l => l.Color is not null)?.Color ?? "transparent";
+
+    private static bool Eq(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    // ---------- play: fire a shortcut ----------
+
+    private async Task Tap(ScreenTileDto tile, int index)
+    {
+        _busyIndex = index;
+        StateHasChanged();
+        try
+        {
+            switch (tile.Kind)
+            {
+                case "scene":
+                    if (_scenes?.Any(s => Eq(s.Id, tile.Ref)) != true) { WarnGone(tile.Kind); return; }
+                    var ar = await Api.ActivateSceneAsync(tile.Ref);
+                    if (ar is null) return;
+                    _activeSceneId = tile.Ref;
+                    if (ar.FullySucceeded) Ui.ReportOk($"Scene \"{tile.Ref}\" is live");
+                    else Ui.ReportError($"Partially applied. {ar.ProblemSummary()}");
+                    break;
+                case "event":
+                    if (_events?.Any(e => Eq(e.Id, tile.Ref)) != true) { WarnGone(tile.Kind); return; }
+                    var er = await Api.TriggerEventAsync(tile.Ref);
+                    if (er is null) return;
+                    if (er.FullySucceeded) Ui.ReportOk($"Event \"{tile.Ref}\" fired");
+                    else Ui.ReportError($"Partially fired. {er.ProblemSummary()}");
+                    break;
+                case "sound":
+                    var snd = _sounds?.FirstOrDefault(s => Eq(s.Id, tile.Ref));
+                    if (snd is null) { WarnGone(tile.Kind); return; }
+                    var isPlaying = _playingSoundIds.Contains(snd.Id);
+                    if (await Api.CommandAsync($"sounds/{Uri.EscapeDataString(snd.Id)}/{(isPlaying ? "stop" : "play")}"))
+                    {
+                        if (isPlaying) _playingSoundIds.Remove(snd.Id);
+                        else _playingSoundIds.Add(snd.Id);
+                    }
+                    break;
+                case "music":
+                    await Api.CommandAsync($"music/play?id={Uri.EscapeDataString(tile.Ref)}", $"Playing {Label(tile)}");
+                    break;
+                case "light-reset":
+                    await Api.ResetLightsToDefaultAsync();
+                    break;
+            }
+        }
+        finally
+        {
+            _busyIndex = null;
+            StateHasChanged();
+        }
+    }
+
+    private void WarnGone(string kind) =>
+        Ui.ReportError($"That {KindLabel(kind)} no longer exists — open Arrange to remove the shortcut.");
+
+    // ---------- arrange ----------
+
+    private void StartArrange()
+    {
+        _savedName = _edit.Name;
+        _savedTiles = [.. _edit.Tiles];
+        _confirmDelete = false;
+        _arranging = true;
+    }
+
+    private void CancelArrange()
+    {
+        _edit.Name = _savedName;
+        _edit.Tiles = [.. _savedTiles];
+        (_emoji, _label) = SceneNaming.SplitName(_savedName);
+        _confirmDelete = false;
+        _arranging = false;
+    }
+
+    private void ToggleEmoji(string e) => _emoji = _emoji == e ? "" : e;
+
+    private string ComposedName =>
+        string.IsNullOrEmpty(_emoji) ? _label.Trim() : $"{_emoji} {_label.Trim()}";
+
+    private bool HasTile(string kind, string reference) =>
+        _edit.Tiles.Any(t => t.Kind == kind && Eq(t.Ref, reference));
+
+    private void ToggleRef(string kind, string reference)
+    {
+        var existing = _edit.Tiles.FirstOrDefault(t => t.Kind == kind && Eq(t.Ref, reference));
+        if (existing is not null) _edit.Tiles.Remove(existing);
+        else _edit.Tiles.Add(new ScreenTileDto(kind, reference, ""));
+    }
+
+    private void AddMusic(string uri, string label)
+    {
+        _edit.Tiles.Add(new ScreenTileDto("music", uri, label));
+        Ui.ReportOk($"Added \"{label}\"");
+    }
+
+    private void AddResetLights()
+    {
+        if (_edit.Tiles.Any(t => t.Kind == "light-reset"))
+        {
+            Ui.ReportOk("This board already has a reset-lights shortcut.");
+            return;
+        }
+        _edit.Tiles.Add(new ScreenTileDto("light-reset", "", "Reset lights"));
+        Ui.ReportOk("Added reset-lights shortcut");
+    }
+
+    private void Move(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= _edit.Tiles.Count) return;
+        (_edit.Tiles[index], _edit.Tiles[target]) = (_edit.Tiles[target], _edit.Tiles[index]);
+    }
+
+    private void RemoveAt(int index) => _edit.Tiles.RemoveAt(index);
+
+    // (id, display-name) pairs for the current entity picker (scene/event/sound); empty otherwise.
+    private List<(string Id, string Label)> PickerItems() => _addKind switch
+    {
+        "scene" => _scenes?.Select(s => (s.Id, Blank(s.Name) ?? s.Id)).ToList() ?? [],
+        "event" => _events?.Select(e => (e.Id, Blank(e.Name) ?? e.Id)).ToList() ?? [],
+        "sound" => _sounds?.Select(s => (s.Id, Blank(s.Name) ?? s.Id)).ToList() ?? [],
+        _ => [],
+    };
+
+    private string EmptyHint() => _addKind switch
+    {
+        "scene" => "No scenes yet — create them on the Scenes tab.",
+        "event" => "No events yet — create them on the Events tab.",
+        "sound" => "No sounds yet — import them on the Sounds tab.",
+        _ => "",
+    };
+
+    private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+        _searching = true;
+        try
+        {
+            var (results, error) = await Api.SearchSpotifyTracksAsync(_query);
+            if (results is not null) _results = results;
+            else if (error is not null) Ui.ReportError(error);
+        }
+        finally { _searching = false; }
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchAsync();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_label))
+        {
+            Ui.ReportError("Give the screen a name first.");
+            return;
+        }
+        _edit.Name = ComposedName;
+
+        _busy = true;
+        try
+        {
+            var (_, error) = await Api.SaveScreenAsync(_edit.Id, _edit);
+            if (error is not null)
+            {
+                Ui.ReportError(error);
+                return;
+            }
+            _savedName = _edit.Name;
+            _savedTiles = [.. _edit.Tiles];
+            Ui.ReportOk($"Saved screen \"{_edit.Id}\"");
+            _arranging = false;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteTapped()
+    {
+        if (!_confirmDelete) { _confirmDelete = true; return; }
+
+        _busy = true;
+        try
+        {
+            var (ok, error) = await Api.DeleteScreenAsync(_edit.Id);
+            if (ok)
+            {
+                Ui.ReportOk($"Deleted screen \"{_edit.Id}\"");
+                await Vt.NavigateAsync("screens");
+            }
+            else
+            {
+                Ui.ReportError(error ?? "Delete failed.");
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

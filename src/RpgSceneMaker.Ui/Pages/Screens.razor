@@ -1,0 +1,120 @@
+@page "/screens"
+@inject ApiClient Api
+@inject UiState Ui
+@inject ViewTransition Vt
+
+<PageTitle>Scene Maker — Screens</PageTitle>
+
+<RuneHeading>Screens</RuneHeading>
+
+@if (_creating)
+{
+    <div class="panel">
+        <div class="emoji-row">
+            @foreach (var e in Palette.Emojis)
+            {
+                <button class="emoji-pick @(e == _emoji ? "picked" : "")" @onclick="() => ToggleEmoji(e)">@e</button>
+            }
+        </div>
+        <div class="field" style="margin-top:1rem;margin-bottom:0">
+            <label for="screen-label">Name</label>
+            <input id="screen-label" type="text" value="@_label" @oninput="e => _label = e.Value?.ToString() ?? string.Empty"
+                   placeholder="e.g. Fantasy" />
+        </div>
+        <p class="hint" style="margin-top:0.6rem">A screen just groups shortcuts — you'll pick which scenes, events, sounds and playlists go on it next.</p>
+        <div class="btn-row" style="margin-top:0.6rem">
+            <button class="btn primary" @onclick="Create" disabled="@_busy">Create</button>
+            <button class="btn" @onclick="() => _creating = false" disabled="@_busy">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (_screens is null)
+{
+    <p class="empty-note">Arranging the boards…</p>
+}
+else
+{
+    @if (_screens.Count == 0 && !_creating)
+    {
+        <p class="empty-note">No screens yet — group your favourite scenes, events and playlists into one board below.</p>
+    }
+    <div class="scene-grid">
+        @foreach (var (screen, index) in _screens.Select((s, i) => (s, i)))
+        {
+            var (emoji, label) = SceneNaming.SplitName(screen.Name, "🎛️", screen.Id);
+            <button class="scene-card" style="animation-delay:@(index * 55)ms" @onclick="() => Open(screen.Id)">
+                <span class="scene-emoji">@emoji</span>
+                <span class="scene-name">@label</span>
+                <span class="screen-count">@TileCount(screen)</span>
+            </button>
+        }
+        <button class="scene-card ghost" @onclick="NewScreen">
+            <span class="scene-emoji">＋</span>
+            <span class="scene-name">New screen</span>
+        </button>
+    </div>
+    @if (_screens.Count > 0)
+    {
+        <p class="hint" style="margin-top:1rem">Tap a screen to open its board; arrange its shortcuts from inside.</p>
+    }
+}
+
+@code {
+    private List<ScreenDto>? _screens;
+    private bool _creating;
+    private bool _busy;
+    private string _emoji = "";
+    private string _label = "";
+
+    protected override async Task OnInitializedAsync() => _screens = await Api.GetScreensAsync();
+
+    private static string TileCount(ScreenDto s)
+    {
+        var n = s.Tiles?.Count ?? 0;
+        return n == 1 ? "1 shortcut" : $"{n} shortcuts";
+    }
+
+    private Task Open(string id) => Vt.NavigateAsync($"screens/{id}");
+
+    private void NewScreen()
+    {
+        _creating = true;
+        _emoji = "";
+        _label = "";
+    }
+
+    private void ToggleEmoji(string e) => _emoji = _emoji == e ? "" : e;
+
+    private string ComposedName =>
+        string.IsNullOrEmpty(_emoji) ? _label.Trim() : $"{_emoji} {_label.Trim()}";
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(_label))
+        {
+            Ui.ReportError("Give the screen a name first.");
+            return;
+        }
+        var id = SceneNaming.MakeUnique(SceneNaming.Slugify(_label), _screens?.Select(s => s.Id).ToList() ?? []);
+        if (string.IsNullOrEmpty(id))
+        {
+            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // Persist an empty board, then drop straight into it to arrange the shortcuts.
+            var (_, error) = await Api.SaveScreenAsync(id, new ScreenEdit { Id = id, Name = ComposedName });
+            if (error is not null)
+            {
+                Ui.ReportError(error);
+                return;
+            }
+            await Vt.NavigateAsync($"screens/{id}");
+        }
+        finally { _busy = false; }
+    }
+}

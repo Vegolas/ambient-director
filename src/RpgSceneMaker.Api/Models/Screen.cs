@@ -1,0 +1,35 @@
+namespace RpgSceneMaker.Api.Models;
+
+/// <summary>
+/// A named, user-arranged board that groups <em>shortcuts</em> to things that already exist — scenes,
+/// events, sounds, a Spotify playlist/track, or the reset-lights command — onto one tap-friendly screen
+/// (e.g. a "Fantasy" or "Horror" board). Purely organizational: a screen owns no light/music/sound
+/// state of its own, and its tiles are still created and edited from their own tabs. Tapping a tile just
+/// operates the underlying entity through its existing endpoint.
+/// </summary>
+public class Screen
+{
+    /// <summary>Slug id (matched case-insensitively, like scenes/events) used in <c>/screens/{id}</c> URLs.</summary>
+    public string Id { get; set; } = "";
+
+    public string Name { get; set; } = "";
+
+    /// <summary>The shortcuts on this board, in display order.</summary>
+    public List<ScreenTile> Tiles { get; set; } = [];
+}
+
+/// <summary>One shortcut on a <see cref="Screen"/>.</summary>
+public class ScreenTile
+{
+    /// <summary>What the tile points at: <c>scene</c>, <c>event</c>, <c>sound</c>, <c>music</c> or <c>light-reset</c>.</summary>
+    public string Kind { get; set; } = "";
+
+    /// <summary>The target: the entity id for <c>scene</c>/<c>event</c>/<c>sound</c>, a Spotify URI/link
+    /// for <c>music</c>, and empty for <c>light-reset</c>.</summary>
+    public string Ref { get; set; } = "";
+
+    /// <summary>Display text. Required for <c>music</c> (there is no stored entity to read a name from);
+    /// for the other kinds the panel resolves the live name/emoji/colour from the referenced entity and
+    /// only falls back to this label when that entity no longer exists.</summary>
+    public string Label { get; set; } = "";
+}
