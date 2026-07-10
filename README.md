@@ -6,6 +6,7 @@ A local REST API (C# / .NET 10 Minimal API) **plus a touch control panel (Blazor
 - **Music** — **Spotify** (Premium) via the Spotify Web API, driving a Spotify Connect device on your LAN.
 - **Sound effects** — a built-in **soundboard**: import your own audio (MP3/WAV/OGG) and fire one-shots or looping ambience, played on the machine running the app. Each sound has its own volume and loop setting, and scenes can trigger sounds too.
 - **Scenes** — named presets combining light color/brightness + a Spotify playlist/track + sound effects, stored in a local SQLite database.
+- **Screens** — named shortcut boards that group your existing scenes, events, sounds and Spotify playlists onto one tap-friendly screen (e.g. a "Fantasy" or "Horror" board). Purely for organization — everything stays editable on its own tab.
 
 Every command endpoint accepts **both GET and POST**, so the built-in Stream Deck *System → Website* action works — no plugin required.
 
@@ -15,7 +16,7 @@ Every command endpoint accepts **both GET and POST**, so the built-in Stream Dec
 dotnet run --project src/RpgSceneMaker.Api
 ```
 
-This serves both the API and the control panel on **http://localhost:5252** (and on your LAN — see the iPad section). The panel's tabs: **Scenes** (one-tap presets with live active highlight), **Music** (Spotify now-playing, transport, volume, shuffle/repeat, playlist list and track search), **Lights** (mood colors, brightness, white temperature), **Sounds** (import + soundboard), and **Logs**.
+This serves both the API and the control panel on **http://localhost:5252** (and on your LAN — see the iPad section). The panel's tabs: **Scenes** (one-tap presets with live active highlight), **Music** (Spotify now-playing, transport, volume, shuffle/repeat, playlist list and track search), **Lights** (mood colors, brightness, white temperature), **Sounds** (import + soundboard), **Events** (one-shot light flash + sound stingers), **Screens** (custom shortcut boards), and **Logs**.
 
 ## Using it from an iPad (or any tablet/phone)
 

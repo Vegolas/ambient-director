@@ -26,12 +26,12 @@ Two projects under `src/`; the solution file lives at
 [src/RpgSceneMaker.Api/RpgSceneMaker.slnx](src/RpgSceneMaker.Api/RpgSceneMaker.slnx).
 
 - **RpgSceneMaker.Api** — Minimal API. [Program.cs](src/RpgSceneMaker.Api/Program.cs) wires up DI +
-  middleware and calls the endpoint groups in `Endpoints/` (`Scene`/`Light`/`Music`/`Sound`/`Event`/`Setup`Endpoints,
+  middleware and calls the endpoint groups in `Endpoints/` (`Scene`/`Light`/`Music`/`Sound`/`Event`/`Screen`/`Setup`Endpoints,
   one `Map…Endpoints()` extension method each); wire DTOs live in `Contracts/`, request guards in `Validation/`.
   It also **hosts** the Blazor WASM panel: it project-references the UI, serves it via
   `UseBlazorFrameworkFiles()`, and falls back non-API routes to `index.html`. So the panel's API base
   address is the same origin.
-- **RpgSceneMaker.Ui** — Blazor WASM control panel. Pages in `Pages/` (Scenes, Music, Lights, Sounds, Events, Settings, Logs);
+- **RpgSceneMaker.Ui** — Blazor WASM control panel. Pages in `Pages/` (Scenes, Screens, Music, Lights, Sounds, Events, Settings, Logs);
   reusable components in `Components/`; wire DTOs and editor form models in `Contracts/`; shared
   constants/helpers in `Shared/` (Palette, SceneNaming, LightFormat, UiExtensions). All server calls go
   through [ApiClient.cs](src/RpgSceneMaker.Ui/Services/ApiClient.cs). The top bar (in
@@ -74,6 +74,15 @@ Running the API is enough to see the panel — it builds and serves the WASM ass
   failed). `/events/*` ([EventEndpoints.cs](src/RpgSceneMaker.Api/Endpoints/EventEndpoints.cs)) covers `list`,
   get/put/delete and `trigger`; like `/sounds`, nothing is mapped at the bare `/events` path so the panel's
   Events tab can live there.
+- **`ScreenStore`** — persistence for **screens** (`Screen`, [Screen.cs](src/RpgSceneMaker.Api/Models/Screen.cs)):
+  named boards of *shortcut tiles* (`ScreenTile` = a `Kind` of scene/event/sound/music/light-reset, a `Ref`
+  — the entity id, or a Spotify URI for music — and a `Label`) that group existing entities onto one
+  tap-friendly screen. Purely organizational: a screen owns no light/music/sound state and has no
+  `/trigger`; the panel's tiles just call the existing `/scenes`, `/events`, `/sounds`, `/music` and
+  `/lights` endpoints. `/screens/*` ([ScreenEndpoints.cs](src/RpgSceneMaker.Api/Endpoints/ScreenEndpoints.cs))
+  covers `list` and put/delete only — there is deliberately **no** `GET /screens/{id}` (and nothing at the
+  bare `/screens`) so full-page loads of the panel's `/screens` and `/screens/{id}` pages fall through to
+  `index.html` (the panel reads `/screens/list` and picks a board by id client-side).
 - **`SoundboardPlayer` / `SoundStore` / `SoundFileStorage`** — the soundboard. `SoundboardPlayer` plays
   sound effects on the **server's own audio device** via NAudio (a `MixingSampleProvider` mixes any number
   of overlapping "voices", each with its own volume and optional looping) — this is what Kenku FM used to
@@ -111,7 +120,8 @@ Scenes and lighting settings live in **SQLite via EF Core**, not appsettings.jso
 `%LocalAppData%\RpgSceneMaker\rpg-scene-maker.db` (override with `Database:Path`). Context:
 [AppDbContext.cs](src/RpgSceneMaker.Api/Data/AppDbContext.cs). Tables: `Scenes` (Light/Music stored
 as JSON columns; ids use `NOCASE` collation), `Sounds` (soundboard metadata; ids `NOCASE`), `Events`
-(one-shot triggered effects; `Flash` JSON column; ids `NOCASE`) and a
+(one-shot triggered effects; `Flash` JSON column; ids `NOCASE`), `Screens` (shortcut boards; `Tiles`
+JSON column; ids `NOCASE`) and a
 single-row `LightingConfig` (whose `DefaultLight` JSON column backs `/lights/default`). The Spotify
 connection (Client ID, refresh token, preferred device) is also persisted here via `SpotifyStore`.
 

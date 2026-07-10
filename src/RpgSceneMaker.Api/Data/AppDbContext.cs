@@ -8,6 +8,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Scene> Scenes => Set<Scene>();
     public DbSet<Sound> Sounds => Set<Sound>();
     public DbSet<GameEvent> Events => Set<GameEvent>();
+    public DbSet<Screen> Screens => Set<Screen>();
     public DbSet<LightingConfig> LightingConfigs => Set<LightingConfig>();
     public DbSet<SpotifyConfig> SpotifyConfigs => Set<SpotifyConfig>();
 
@@ -40,6 +41,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // Event ids appear in hand-typed /events/{id}/trigger URLs, so match them case-insensitively too.
             evt.Property(e => e.Id).UseCollation("NOCASE");
             evt.OwnsOne(e => e.Flash, b => b.ToJson());
+        });
+
+        modelBuilder.Entity<Screen>(screen =>
+        {
+            screen.HasKey(s => s.Id);
+            // Screen ids appear in /screens/{id} URLs (deep-linkable), so match them case-insensitively too.
+            screen.Property(s => s.Id).UseCollation("NOCASE");
+            // Tiles are a small ordered list of value objects — stored as one JSON column (like Scene.Lights).
+            screen.OwnsMany(s => s.Tiles, b => b.ToJson());
         });
 
         modelBuilder.Entity<LightingConfig>(config =>

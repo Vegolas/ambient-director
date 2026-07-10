@@ -31,6 +31,7 @@ builder.Services.AddSingleton(new SoundFileStorage(soundsPath));
 builder.Services.AddSingleton<SoundboardPlayer>();
 
 builder.Services.AddSingleton<EventStore>();
+builder.Services.AddSingleton<ScreenStore>();
 
 builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<CurrentState>();
@@ -129,8 +130,8 @@ app.Use(async (context, next) =>
         !path.StartsWithSegments("/setup/spotify/callback") &&
         (path.StartsWithSegments("/scenes") || path.StartsWithSegments("/lights") ||
          path.StartsWithSegments("/music") || path.StartsWithSegments("/sounds") ||
-         path.StartsWithSegments("/events") || path.StartsWithSegments("/setup") ||
-         path.StartsWithSegments("/logs"));
+         path.StartsWithSegments("/events") || path.StartsWithSegments("/screens") ||
+         path.StartsWithSegments("/setup") || path.StartsWithSegments("/logs"));
 });
 
 // The Blazor WASM control panel is served from this same process.
@@ -145,6 +146,7 @@ app.MapLightEndpoints();
 app.MapMusicEndpoints();
 app.MapSoundEndpoints();
 app.MapEventEndpoints();
+app.MapScreenEndpoints();
 app.MapSetupEndpoints();
 app.MapLogEndpoints();
 

@@ -189,7 +189,7 @@ h2.rune::after { content: ""; flex: 1; height: 1px; background: linear-gradient(
     height: var(--tabbar-h);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     background: linear-gradient(rgba(20, 16, 27, 0.9), var(--bg-deep));
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--line);
@@ -331,6 +331,43 @@ h2.rune::after { content: ""; flex: 1; height: 1px; background: linear-gradient(
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: none; }
 }
+
+/* ---------- screens (shortcut boards) ---------- */
+/* Shortcut-count line under a board's name on the Screens launcher. */
+.scene-card .screen-count {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-dim);
+}
+/* A playing-sound shortcut pulses like its row on the Sounds tab. */
+.scene-card.playing {
+    border-color: var(--line-strong);
+    animation: soundPulse 1.6s ease-in-out infinite;
+}
+/* A shortcut whose target was deleted — dimmed with a danger edge until removed in Arrange. */
+.scene-card.missing { opacity: 0.7; border-color: rgba(255, 93, 93, 0.5); }
+.krow.arrange.missing { border-color: rgba(255, 93, 93, 0.5); }
+
+/* Arrange mode: a tile row carries reorder / remove controls on the right (not itself tappable). */
+.krow.arrange { cursor: default; }
+.krow.arrange:active { background: rgba(255, 255, 255, 0.03); }
+.reorder {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink-dim);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.08s, border-color 0.2s, color 0.2s;
+}
+.reorder:active { transform: scale(0.9); border-color: var(--line-strong); }
+.reorder:disabled { opacity: 0.3; pointer-events: none; }
+.reorder.danger { color: var(--danger); }
 
 /* ---------- panels / cards ---------- */
 .panel {
