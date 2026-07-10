@@ -1,0 +1,28 @@
+name: Feature request
+description: A new capability or enhancement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should it do, and why?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - UI (Blazor panel)
+        - API
+        - Lights (Tuya / Hue)
+        - Music (Spotify)
+        - Soundboard
+        - Build / infra
+        - Cross-cutting
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / ideas
+      description: Implementation thoughts, links, or files this would touch.

@@ -1,8 +1,9 @@
-- UI prepared in Design
-- MCP + local AI (BYOK) for scene management
-- view transitions
-- events (ex: thunder)
-- soundboards as in, create named soundboard and add scenes, events, ligths etc to a single configurable screen
-- developer mode (showing logs etc)
-- light fx/effect creator (with timeline etc)
-- advanced event editor (timeline)
+# Roadmap
+
+The backlog now lives in **GitHub Issues**, not this file:
+
+- **All tasks:** https://github.com/Vegolas/rpg-scene-maker/issues
+- **Board:** _GitHub Project — link added once the board is created._
+
+Issues are labelled by area (`area: ui`, `area: api`, `area: lights`, `area: music`, `area: sound`,
+`area: infra`) plus `enhancement` / `bug`. The original roadmap items were migrated to issues #1–#8.
