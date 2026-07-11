@@ -34,6 +34,7 @@ public class EventStore(IDbContextFactory<AppDbContext> dbFactory)
             existing.SoundEffects = evt.SoundEffects;
             existing.Image = evt.Image;
             existing.Timeline = evt.Timeline;
+            existing.After = evt.After;
         }
         await db.SaveChangesAsync();
     }

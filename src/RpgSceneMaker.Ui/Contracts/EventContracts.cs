@@ -4,8 +4,11 @@ namespace RpgSceneMaker.Ui.Contracts;
 // `Image` is an optional full-art tile background. `Timeline` is the advanced editor's shape;
 // `Flash`/`SoundEffects` are the legacy shape (still read for import, always written back as null/[]
 // once an event is saved from the timeline editor).
-public record EventDto(string Id, string Name, EventFlashDto? Flash, List<string>? SoundEffects, string? Image = null, EventTimelineDto? Timeline = null);
+public record EventDto(string Id, string Name, EventFlashDto? Flash, List<string>? SoundEffects, string? Image = null, EventTimelineDto? Timeline = null, EventAfterDto? After = null);
 public record EventFlashDto(string Color, int Brightness, int DurationMs);
+// What the lights do when the event finishes. Mode: "previous" (restore prior lighting — the default),
+// "scene" (fully activate SceneId — lights + music) or "default" (apply the configured default light).
+public record EventAfterDto(string Mode, string? SceneId);
 public record EventTriggerDto(string Event, string Light, string Sound, bool FullySucceeded);
 
 // Timeline wire shape: overlapping-free lists of sound + light clips along a shared time axis (ms).
@@ -29,9 +32,12 @@ public class EventEdit
     public string Name { get; set; } = "";
     public TimelineEdit Timeline { get; set; } = new();
     public string? Image { get; set; }
+    public EventAfterEdit After { get; set; } = new();
 
-    // Always writes the timeline and clears the legacy fields (flash:null, soundEffects:[]).
-    public EventDto ToDto() => new(Id, Name, null, [], Image, Timeline.ToDto());
+    // Always writes the timeline and clears the legacy fields (flash:null, soundEffects:[]). A plain
+    // "previous" ending is sent as null, so an ordinary event's wire shape is unchanged.
+    public EventDto ToDto() => new(Id, Name, null, [], Image, Timeline.ToDto(),
+        After.Mode == "previous" ? null : After.ToDto());
 
     // Build an editable model from an event, converting a legacy (flash/soundEffects) event into
     // equivalent timeline clips: the flash → one all-lights light clip at t=0; each legacy sound id →
@@ -40,7 +46,7 @@ public class EventEdit
     // (a natural length under that, or an unknown one, would otherwise make the server 400 the clip).
     public static EventEdit FromDto(EventDto evt, IReadOnlyList<SoundDto> sounds)
     {
-        var edit = new EventEdit { Id = evt.Id, Name = evt.Name, Image = evt.Image };
+        var edit = new EventEdit { Id = evt.Id, Name = evt.Name, Image = evt.Image, After = EventAfterEdit.FromDto(evt.After) };
 
         if (evt.Timeline is { } tl)
         {
@@ -71,6 +77,20 @@ public class EventEdit
         }
         return edit;
     }
+}
+
+// Mutable form model for the event's ending. Mode: "previous" | "scene" | "default".
+public class EventAfterEdit
+{
+    public string Mode { get; set; } = "previous";
+    public string? SceneId { get; set; }
+
+    // SceneId only travels when the ending is a scene, so switching away doesn't persist a stale target.
+    public EventAfterDto ToDto() => new(Mode, Mode == "scene" ? SceneId : null);
+
+    public static EventAfterEdit FromDto(EventAfterDto? d) => d is null
+        ? new EventAfterEdit()
+        : new EventAfterEdit { Mode = string.IsNullOrWhiteSpace(d.Mode) ? "previous" : d.Mode, SceneId = d.SceneId };
 }
 
 public class TimelineEdit

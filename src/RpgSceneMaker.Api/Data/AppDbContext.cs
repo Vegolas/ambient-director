@@ -48,6 +48,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 timeline.OwnsMany(t => t.Sounds);
                 timeline.OwnsMany(t => t.Lights, lights => lights.OwnsOne(l => l.Effect));
             });
+            // What the lights do when the event finishes — one small JSON column, like Flash.
+            evt.OwnsOne(e => e.After, b => b.ToJson());
         });
 
         modelBuilder.Entity<Screen>(screen =>

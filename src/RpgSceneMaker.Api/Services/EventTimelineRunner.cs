@@ -8,11 +8,12 @@ namespace RpgSceneMaker.Api.Services;
 /// millisecond offsets, each scheduled on its own task. Only one timeline runs at a time — starting a new
 /// one stops the current one. Light clips overlay the live scene; each animated clip runs as its own group
 /// on the shared <see cref="EffectEngine"/> (so a scene activation / reset-lights <c>StopAll</c> stops the
-/// clip too — whoever called it is taking over the lights). When the timeline touched the lights they are
-/// restored afterwards (live scene via <see cref="SceneLightApplier"/>, else the configured default light).
-/// Sound clips overlay current playback like an event's <see cref="GameEvent.SoundEffects"/> do.
+/// clip too — whoever called it is taking over the lights). When the run ends, the event's ending
+/// (<see cref="GameEvent.After"/>, via <see cref="EventAfterApplier"/>) runs — by default restoring the prior
+/// lighting (live scene, else the default light), or optionally activating another scene / applying the
+/// default light. Sound clips overlay current playback like an event's <see cref="GameEvent.SoundEffects"/> do.
 ///
-/// Registered as a singleton, but <see cref="ILightService"/> and <see cref="SceneLightApplier"/> are scoped
+/// Registered as a singleton, but <see cref="ILightService"/> and the scene/after services are scoped
 /// (the provider is chosen per-request from settings), so a run creates one scope for its whole lifetime.
 /// </summary>
 public sealed class EventTimelineRunner(
@@ -83,7 +84,7 @@ public sealed class EventTimelineRunner(
         var groupLights = sp.GetRequiredService<ILightService>();
         var registry = sp.GetRequiredService<LightRegistry>();
         var globalEffects = sp.GetRequiredService<EffectEngine>();
-        var applier = sp.GetRequiredService<SceneLightApplier>();
+        var afterApplier = sp.GetRequiredService<EventAfterApplier>();
 
         // Preload every sound once so a clip doesn't open a DbContext + query mid-playback; a missing id
         // still warns + skips at fire time.
@@ -116,12 +117,14 @@ public sealed class EventTimelineRunner(
                 foreach (var handle in cancelHandles) SafeStopVoice(handle);
             foreach (var handle in lightGroups) SafeStopGroup(globalEffects, handle);
 
-            // The up-front StopAll disturbed the lights whenever the timeline had light clips, so restore
-            // even on an early stop — but only if a newer run hasn't taken over (its lights win).
-            if (hasLightClips && StillOwnsLights(run))
+            // Apply what comes after the timeline (restore the prior lighting, activate another scene, or the
+            // default light) — but only if a newer run hasn't taken over (its lights win). "previous" only
+            // matters when the clips disturbed the lights (the up-front StopAll); an explicit scene/default
+            // transition runs regardless, so even a sound-only timeline can end on a scene change.
+            if (StillOwnsLights(run) && (hasLightClips || EventAfterApplier.IsTransition(evt.After)))
             {
-                try { await applier.RestoreLightsAsync(); }
-                catch (Exception ex) { logger.LogWarning(ex, "Event timeline '{Id}' light restore failed", evt.Id); }
+                try { await afterApplier.ApplyAsync(evt.After); }
+                catch (Exception ex) { logger.LogWarning(ex, "Event timeline '{Id}' after-effect failed", evt.Id); }
             }
 
             lock (_lock)

@@ -26,6 +26,24 @@ public class GameEvent
     /// <summary>Optional advanced timeline: sound and light clips placed at millisecond offsets, played in
     /// the background when the event is triggered. Null on legacy events (Flash + <see cref="SoundEffects"/>).</summary>
     public EventTimeline? Timeline { get; set; }
+
+    /// <summary>What the lighting does when the event finishes. Null (and <see cref="EventAfter.Mode"/>
+    /// "previous") means the historical behavior: restore whatever was showing before — the live scene, else
+    /// the configured default light. Can instead fully activate another scene or apply the default light.</summary>
+    public EventAfter? After { get; set; }
+}
+
+/// <summary>What an event does to the lighting once it finishes. <see cref="Mode"/> is a small string
+/// (like the scene light-clip modes) so it serializes identically over the wire and in the JSON column:
+/// "previous" (restore the prior lighting — the live scene, else the default light — the default), "scene"
+/// (fully activate <see cref="SceneId"/>, lights + music, like tapping it) or "default" (apply the
+/// configured default light regardless of the live scene).</summary>
+public class EventAfter
+{
+    public string Mode { get; set; } = "previous";
+
+    /// <summary>Scene id to activate when <see cref="Mode"/> is "scene"; ignored otherwise.</summary>
+    public string? SceneId { get; set; }
 }
 
 /// <summary>A background timeline of sound and light clips triggered together, each placed at an offset.</summary>

@@ -1090,6 +1090,12 @@ ol.steps li { margin: 0.3rem 0; }
 .tl-clip-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
 .tl-clip-time { flex: 0 0 auto; color: var(--ink-dim); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 
+/* waveform preview filling a sound clip, behind its label */
+.tl-wave { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.5; }
+.tl-wave polygon { fill: rgba(190, 214, 255, 0.85); }
+.tl-clip.sound .tl-clip-label, .tl-clip.sound .tl-clip-time { position: relative; z-index: 1; }
+.tl-clip.sound.sel .tl-wave { opacity: 0.65; }
+
 /* right-edge resize handle */
 .tl-resize {
     position: absolute;

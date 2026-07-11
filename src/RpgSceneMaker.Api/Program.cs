@@ -51,6 +51,7 @@ builder.Services.AddSingleton<LightRegistry>();
 builder.Services.AddSingleton<EffectEngine>();
 builder.Services.AddScoped<SceneLightApplier>();
 builder.Services.AddScoped<SceneActivator>();
+builder.Services.AddScoped<EventAfterApplier>();
 builder.Services.AddScoped<EventActivator>();
 // Runs an event's background timeline; creates its own scope per run (ILightService is scoped).
 builder.Services.AddSingleton<EventTimelineRunner>();

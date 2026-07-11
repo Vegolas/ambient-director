@@ -17,6 +17,10 @@ public sealed class SoundboardPlayer : IDisposable
     private const int SampleRate = 44100;
     private const int Channels = 2;
 
+    /// <summary>Number of amplitude buckets in a stored waveform preview (one byte each, 0–255). Small
+    /// enough to ride along in <c>SoundDto</c>, dense enough to draw a recognizable shape on a timeline clip.</summary>
+    public const int WaveformBuckets = 120;
+
     private readonly object _lock = new();
     private readonly List<Voice> _voices = [];
     private IWavePlayer? _output;
@@ -169,6 +173,58 @@ public sealed class SoundboardPlayer : IDisposable
         {
             using var reader = CreateReader(filePath);
             return (int)reader.TotalTime.TotalMilliseconds;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Compute a compact amplitude preview (<see cref="WaveformBuckets"/> peaks, each 0–255 and
+    /// normalized so the loudest sample is full-scale) for the timeline editor's waveform display, using the
+    /// same reader as playback. Streams the file in one pass (bucketing on the fly, never buffering the whole
+    /// decoded audio). Returns null when the file is missing or won't decode — callers persist the empty-array
+    /// "tried, unmeasurable" sentinel so the backfill doesn't re-probe it.</summary>
+    public static byte[]? TryComputeWaveform(string filePath, int buckets = WaveformBuckets)
+    {
+        if (!File.Exists(filePath) || buckets < 1) return null;
+        try
+        {
+            using var reader = CreateReader(filePath);
+            var samples = reader.ToSampleProvider();
+            var channels = Math.Max(1, samples.WaveFormat.Channels);
+
+            // Size the buckets from the reported length so each frame lands in the right one in a single pass;
+            // a slightly-off total just over/underfills the final bucket, which is imperceptible at this scale.
+            var totalFrames = (long)(reader.TotalTime.TotalSeconds * samples.WaveFormat.SampleRate);
+            var framesPerBucket = Math.Max(1, totalFrames / buckets);
+
+            var peaks = new float[buckets];
+            var buffer = new float[samples.WaveFormat.SampleRate * channels]; // ~1s chunks
+            var maxPeak = 0f;
+            long frame = 0;
+            int read;
+            while ((read = samples.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                for (var i = 0; i + channels <= read; i += channels)
+                {
+                    // Peak (max abs) across this frame's channels.
+                    var amp = 0f;
+                    for (var c = 0; c < channels; c++)
+                        amp = Math.Max(amp, Math.Abs(buffer[i + c]));
+
+                    var bucket = (int)Math.Min(buckets - 1, frame / framesPerBucket);
+                    if (amp > peaks[bucket]) peaks[bucket] = amp;
+                    if (amp > maxPeak) maxPeak = amp;
+                    frame++;
+                }
+            }
+
+            var result = new byte[buckets];
+            if (maxPeak > 0)
+                for (var i = 0; i < buckets; i++)
+                    result[i] = (byte)Math.Clamp((int)Math.Round(peaks[i] / maxPeak * 255f), 0, 255);
+            return result;
         }
         catch
         {
