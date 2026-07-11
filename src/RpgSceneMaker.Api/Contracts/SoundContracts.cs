@@ -1,9 +1,10 @@
 namespace RpgSceneMaker.Api.Contracts;
 
 /// <summary>Wire shape for a sound-effect library entry. <c>Image</c> is an optional full-art tile
-/// background; <c>DurationMs</c> is the file's natural length (null when it can't be decoded), used by
-/// the event timeline editor.</summary>
-public record SoundDto(string Id, string Name, string Category, double Volume, bool Loop, string? Image, int? DurationMs);
+/// background; <c>DurationMs</c> is the file's natural length (null when it can't be decoded); <c>Waveform</c>
+/// is a compact amplitude preview (peaks 0–255; null/empty when not yet measured or undecodable). Both feed
+/// the event timeline editor. <c>Waveform</c> serializes as base64.</summary>
+public record SoundDto(string Id, string Name, string Category, double Volume, bool Loop, string? Image, int? DurationMs, byte[]? Waveform);
 
 /// <summary>Editable fields for a sound; each null field is left unchanged (partial update), except
 /// <see cref="Image"/> which is set as sent (null clears the tile background).</summary>

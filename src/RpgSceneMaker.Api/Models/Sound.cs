@@ -29,4 +29,11 @@ public class Sound
     /// "tried, unmeasurable" sentinel persisted when the file won't decode, so the backfill doesn't
     /// re-probe it forever — consumers treat any value <c>&lt;= 0</c> as an unknown length.</summary>
     public int? DurationMs { get; set; }
+
+    /// <summary>Compact amplitude preview of the file (<see cref="SoundboardPlayer.WaveformBuckets"/> peaks,
+    /// each 0–255, normalized to the loudest sample), drawn as the waveform on timeline sound clips. Measured
+    /// at import alongside <see cref="DurationMs"/>. Null means "not computed yet" (predates the feature;
+    /// backfilled lazily by <c>/sounds/list</c>); an empty array is the "tried, unmeasurable" sentinel so the
+    /// backfill doesn't re-probe a file that won't decode.</summary>
+    public byte[]? Waveform { get; set; }
 }

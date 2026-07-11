@@ -21,12 +21,16 @@ public static class SoundEndpoints
         sounds.MapGet("/list", async (SoundStore store, SoundFileStorage files) =>
         {
             var all = await store.GetAllAsync();
-            // Backfill natural length for any sound imported before duration tracking; persist what we can,
-            // but never fail the list. A file that won't decode persists the 0 "unmeasurable" sentinel so
-            // the DurationMs==null filter converges (we don't re-probe it on every list).
-            foreach (var sound in all.Where(s => s.DurationMs is null))
+            // Backfill natural length + waveform for any sound imported before that tracking existed; persist
+            // what we can, but never fail the list. A file that won't decode persists the sentinels (0 for
+            // duration, empty array for the waveform) so the null-filter converges and we don't re-probe it on
+            // every list. This runs at most once per sound (the first list after an upgrade); decoding a large
+            // library's audio here is a one-time cost, after which every list is cheap again.
+            foreach (var sound in all.Where(s => s.DurationMs is null || s.Waveform is null))
             {
-                sound.DurationMs = SoundboardPlayer.TryMeasureDurationMs(files.FullPath(sound)) ?? 0;
+                var path = files.FullPath(sound);
+                sound.DurationMs ??= SoundboardPlayer.TryMeasureDurationMs(path) ?? 0;
+                sound.Waveform ??= SoundboardPlayer.TryComputeWaveform(path) ?? [];
                 try { await store.UpsertAsync(sound); } catch { /* leave for next list; not worth failing this one */ }
             }
             return all.Select(ToDto);
@@ -63,9 +67,11 @@ public static class SoundEndpoints
             await using var stream = file.OpenReadStream();
             var storedName = await files.SaveAsync(id, ext, stream);
             var sound = new Sound { Id = id, Name = name, Category = category, FileName = storedName };
-            // Measure the file's natural length now (same reader logic as playback); 0 "unmeasurable"
-            // sentinel if it won't decode, so /sounds/list never re-probes it.
-            sound.DurationMs = SoundboardPlayer.TryMeasureDurationMs(files.FullPath(sound)) ?? 0;
+            // Measure the file's natural length + waveform preview now (same reader logic as playback); the
+            // "unmeasurable" sentinels (0 / empty array) if it won't decode, so /sounds/list never re-probes it.
+            var fullPath = files.FullPath(sound);
+            sound.DurationMs = SoundboardPlayer.TryMeasureDurationMs(fullPath) ?? 0;
+            sound.Waveform = SoundboardPlayer.TryComputeWaveform(fullPath) ?? [];
             SoundValidation.Validate(sound);
             await store.UpsertAsync(sound);
             return Results.Ok(ToDto(sound));
@@ -170,7 +176,9 @@ public static class SoundEndpoints
         return kept.Count != soundEffects.Count ? kept : null;
     }
 
-    private static SoundDto ToDto(Sound s) => new(s.Id, s.Name, s.Category, s.Volume, s.Loop, s.Image, s.DurationMs);
+    // An empty waveform (the "couldn't decode" sentinel) is sent as null — the UI treats both as "no waveform".
+    private static SoundDto ToDto(Sound s) =>
+        new(s.Id, s.Name, s.Category, s.Volume, s.Loop, s.Image, s.DurationMs, s.Waveform is { Length: > 0 } ? s.Waveform : null);
 
     private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 

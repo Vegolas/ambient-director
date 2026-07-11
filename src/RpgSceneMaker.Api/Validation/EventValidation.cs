@@ -51,6 +51,25 @@ public static class EventValidation
                 && (evt.Flash is not null || evt.SoundEffects.Count > 0))
                 throw new ArgumentException("An event with timeline clips can't also set a flash or sound effects — the timeline replaces them.");
         }
+
+        if (evt.After is { } after)
+        {
+            after.Mode = (after.Mode ?? "").Trim().ToLowerInvariant();
+            if (after.Mode.Length == 0) after.Mode = "previous";
+            if (after.Mode is not ("previous" or "scene" or "default"))
+                throw new ArgumentException("Event 'after' mode must be 'previous', 'scene' or 'default'.");
+            if (after.Mode == "scene")
+            {
+                // The scene needn't still exist (a deleted target falls back to restoring at trigger time,
+                // like a dangling sound id) — just require an id was chosen.
+                if (string.IsNullOrWhiteSpace(after.SceneId))
+                    throw new ArgumentException("Event 'after' set to a scene needs a scene id.");
+            }
+            else
+            {
+                after.SceneId = null; // keep the stored shape honest for non-scene endings
+            }
+        }
     }
 
     private static void ValidateTimeline(EventTimeline timeline)

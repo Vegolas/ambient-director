@@ -12,15 +12,16 @@ public record EventResult(string Event, string Light, string Sound)
 
 /// <summary>
 /// Fires a one-shot <see cref="GameEvent"/>: a brief light flash and/or overlapping sound effects, run
-/// concurrently. The flash jumps the lights to the event's colour, holds for its duration, then restores
-/// the prior lighting — the live scene if one is active (re-running its effects), else the configured
-/// default light, else it leaves the flash as-is (nothing known to restore to). Sounds overlay current
-/// playback rather than replacing it, so a thunderclap lands over the tavern music.
+/// concurrently. The flash jumps the lights to the event's colour and holds for its duration; then the
+/// event's ending (<see cref="GameEvent.After"/>, via <see cref="EventAfterApplier"/>) runs — by default
+/// restoring the prior lighting (the live scene, else the default light), or optionally activating another
+/// scene / applying the default light. Sounds overlay current playback rather than replacing it, so a
+/// thunderclap lands over the tavern music.
 /// </summary>
 public class EventActivator(
     ILightService lights,
     EffectEngine effects,
-    SceneLightApplier sceneLights,
+    EventAfterApplier afterApplier,
     EventTimelineRunner runner,
     SoundStore soundStore,
     SoundFileStorage soundFiles,
@@ -40,24 +41,30 @@ public class EventActivator(
                 timeline.Sounds.Count > 0 ? "started" : "skipped");
         }
 
-        // Legacy event: flash + overlapping sounds, run concurrently and awaited.
-        var lightTask = RunAsync("light", () => FlashAsync(evt.Flash));
+        // Legacy event: flash (jump + hold) + overlapping sounds, run concurrently and awaited.
+        var lightTask = RunAsync("light", () => FlashHoldAsync(evt.Flash));
         var soundTask = RunAsync("sound", () => PlaySoundsAsync(evt.SoundEffects));
 
         await Task.WhenAll(lightTask, soundTask);
+
+        // Then apply what comes after the event: restore the prior lighting, activate another scene, or
+        // apply the default light. "previous" only matters when the flash disturbed the lights; an explicit
+        // scene/default transition runs regardless (even a sound-only event can end on a scene change).
+        if (evt.Flash is not null || EventAfterApplier.IsTransition(evt.After))
+            await afterApplier.ApplyAsync(evt.After);
+
         return new EventResult(evt.Id, lightTask.Result, soundTask.Result);
     }
 
-    private async Task<bool> FlashAsync(EventFlash? flash)
+    private async Task<bool> FlashHoldAsync(EventFlash? flash)
     {
         if (flash is null) return false;
 
-        // Stop any running scene effects so they don't fight the flash, jump to the flash colour,
-        // hold, then hand back to whatever should be showing.
+        // Stop any running scene effects so they don't fight the flash, jump to the flash colour and hold;
+        // the "after" step (above) hands back to whatever should be showing once the sounds have fired too.
         effects.StopAll();
         await lights.SetColorAsync(flash.Color, flash.Brightness);
         await Task.Delay(flash.DurationMs);
-        await sceneLights.RestoreLightsAsync();
         return true;
     }
 

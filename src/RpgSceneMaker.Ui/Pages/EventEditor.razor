@@ -50,6 +50,38 @@ else
         <TimelineEditor Model="_edit.Timeline" Sounds="_sounds" Lights="_lights" />
     </div>
 
+    <RuneHeading>When it ends</RuneHeading>
+    <div class="panel">
+        <Segmented TValue="string" Options="AfterOptions" Value="_edit.After.Mode" ValueChanged="m => _edit.After.Mode = m" />
+        @if (_edit.After.Mode == "scene")
+        {
+            <div class="field" style="margin-top:1rem;margin-bottom:0">
+                <label for="evt-after-scene">Scene to activate</label>
+                <select id="evt-after-scene" value="@(_edit.After.SceneId ?? "")"
+                        @onchange="e => _edit.After.SceneId = (e.Value?.ToString() is { Length: > 0 } v ? v : null)">
+                    <option value="">— pick a scene —</option>
+                    @foreach (var s in _scenes)
+                    {
+                        <option value="@s.Id">@s.Name</option>
+                    }
+                    @if (_edit.After.SceneId is { Length: > 0 } sid && !_scenes.Any(s => string.Equals(s.Id, sid, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        <option value="@sid">@sid (missing)</option>
+                    }
+                </select>
+            </div>
+            <p class="hint" style="margin-top:0.6rem">Fully activates that scene — lights <em>and</em> music — when the event finishes.</p>
+        }
+        else if (_edit.After.Mode == "default")
+        {
+            <p class="hint" style="margin-top:0.8rem">Resets the lights to the configured default when the event finishes (music is left playing).</p>
+        }
+        else
+        {
+            <p class="hint" style="margin-top:0.8rem">Returns to whatever was showing before — the live scene, or the default light.</p>
+        }
+    </div>
+
     <RuneHeading>Save</RuneHeading>
     <div class="btn-row">
         <button class="btn primary" @onclick="() => Save(test: false)" disabled="@_busy">Save</button>
@@ -80,6 +112,11 @@ else
     private List<string> _existingIds = [];
     private List<SoundDto> _sounds = [];
     private List<RegisteredLightInfo> _lights = [];
+    private List<SceneDto> _scenes = [];
+
+    // Endings offered in the "When it ends" segmented control.
+    private static readonly (string, string)[] AfterOptions =
+        [("previous", "Return to previous"), ("scene", "Go to scene"), ("default", "Default lights")];
 
     private string _emoji = "";
     private string _label = "";
@@ -95,10 +132,12 @@ else
         var eventsTask = Api.GetEventsAsync();
         var soundsTask = Api.GetSoundsAsync();
         var lightsTask = Api.GetRegisteredLightsAsync();
-        await Task.WhenAll(eventsTask, soundsTask, lightsTask);
+        var scenesTask = Api.GetScenesAsync();
+        await Task.WhenAll(eventsTask, soundsTask, lightsTask, scenesTask);
         _existingIds = (await eventsTask).Select(e => e.Id).ToList();
         _sounds = await soundsTask;
         _lights = await lightsTask;
+        _scenes = await scenesTask;
 
         if (!_isNew)
         {
@@ -175,6 +214,11 @@ else
         if (badDrift is not null)
         {
             Ui.ReportError("A Drift effect needs at least 2 colors.");
+            return;
+        }
+        if (_edit.After.Mode == "scene" && string.IsNullOrWhiteSpace(_edit.After.SceneId))
+        {
+            Ui.ReportError("Pick a scene to go to when the event ends, or choose another ending.");
             return;
         }
 

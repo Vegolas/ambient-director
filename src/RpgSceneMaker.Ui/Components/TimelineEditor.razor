@@ -37,11 +37,18 @@
                 @foreach (var s in Model.Sounds)
                 {
                     var w = SoundDisplayMs(s);
+                    var wave = SoundWave(s);
                     <div class="tl-lane">
                         <div class="tl-clip sound @(IsSelected("sound", s.Uid) ? "sel" : "")"
                              data-clip-kind="sound" data-clip-id="@s.Uid"
                              style="left:@(Px(s.StartMs))px;width:@(Px(w))px"
                              title="@SoundName(s.SoundId)">
+                            @if (wave is { } wv)
+                            {
+                                <svg class="tl-wave" viewBox="0 0 @wv.Width 40" preserveAspectRatio="none" aria-hidden="true">
+                                    <polygon points="@wv.Points" />
+                                </svg>
+                            }
                             <span class="tl-clip-label">@SoundName(s.SoundId)</span>
                             <span class="tl-clip-time">@SoundClipTimeLabel(s, w)</span>
                             <span class="tl-resize" aria-label="Resize clip"></span>
@@ -304,6 +311,33 @@ else if (SelectedLight is { } lc)
         if (s.DurationMs is { } d) return ClipTimeLabel(s.StartMs, d, false);
         if (SoundLoop(s.SoundId)) return $"{Sec(s.StartMs)}s · 🔁 until stopped";
         return ClipTimeLabel(s.StartMs, displayMs, true);
+    }
+
+    // SVG polygon for the sound's waveform: peaks mirrored about the vertical centre of a (Width × 40)
+    // viewBox, stretched to the clip via preserveAspectRatio="none" so it always maps 1:1 with the clip's
+    // time window. Null when the sound has no measured waveform. A one-shot cut short draws only the played
+    // fraction of the file (keeping time alignment); loops and full-length one-shots draw the whole file.
+    private (string Points, int Width)? SoundWave(TimelineSoundEdit s)
+    {
+        if (Sound(s.SoundId)?.Peaks is not { Length: > 1 } peaks) return null;
+
+        var n = Math.Clamp((int)Math.Round(peaks.Length * WaveFraction(s)), 2, peaks.Length);
+        var sb = new System.Text.StringBuilder(n * 14);
+        for (var i = 0; i < n; i++)              // tops, left → right
+            sb.Append(i).Append(',').Append(20 - peaks[i] * 18 / 255).Append(' ');
+        for (var i = n - 1; i >= 0; i--)         // bottoms, right → left
+            sb.Append(i).Append(',').Append(20 + peaks[i] * 18 / 255).Append(' ');
+        return (sb.ToString(), n - 1);
+    }
+
+    // Fraction of the file the clip actually plays: the whole file for loops (their box is a fixed preview
+    // width) and when the natural length is unknown or the clip plays to its natural end; otherwise the
+    // explicit window over the natural length (a cut-short clip shows only the part it plays).
+    private double WaveFraction(TimelineSoundEdit s)
+    {
+        if (SoundLoop(s.SoundId) || s.DurationMs is not { } dur) return 1.0;
+        if (SoundNatural(s.SoundId) is not { } natural || natural <= 0) return 1.0;
+        return Math.Clamp(dur / (double)natural, 0.02, 1.0);
     }
 
     // ---------- lookups ----------
