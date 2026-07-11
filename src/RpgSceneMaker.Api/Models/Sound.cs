@@ -20,4 +20,7 @@ public class Sound
 
     /// <summary>When true the sound loops until stopped; otherwise it plays once.</summary>
     public bool Loop { get; set; }
+
+    /// <summary>Stored file name of an optional full-art tile background (uploaded via <c>/images</c>), or null.</summary>
+    public string? Image { get; set; }
 }

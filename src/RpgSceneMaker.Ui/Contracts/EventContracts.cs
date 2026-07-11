@@ -1,7 +1,7 @@
 namespace RpgSceneMaker.Ui.Contracts;
 
 // Mirrors the API's event shapes (contracts are duplicated per project by design — keep in sync by hand).
-public record EventDto(string Id, string Name, EventFlashDto? Flash, List<string>? SoundEffects);
+public record EventDto(string Id, string Name, EventFlashDto? Flash, List<string>? SoundEffects, string? Image);
 public record EventFlashDto(string Color, int Brightness, int DurationMs);
 public record EventTriggerDto(string Event, string Light, string Sound, bool FullySucceeded);
 
@@ -15,8 +15,10 @@ public class EventEdit
     public int FlashBrightness { get; set; } = 100;
     public int FlashDurationMs { get; set; } = 200;
     public List<string> SoundEffects { get; set; } = [];
+    public string? Image { get; set; }
 
     public EventDto ToDto() => new(Id, Name,
         FlashEnabled ? new EventFlashDto(FlashColor, FlashBrightness, FlashDurationMs) : null,
-        SoundEffects);
+        SoundEffects,
+        Image);
 }

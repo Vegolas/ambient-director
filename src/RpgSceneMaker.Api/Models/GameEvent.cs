@@ -19,6 +19,9 @@ public class GameEvent
     /// <summary>Ids of soundboard <see cref="Sound"/>s fired when this event is triggered. Unlike a scene,
     /// these overlap current playback (a clap over the music) instead of replacing it.</summary>
     public List<string> SoundEffects { get; set; } = [];
+
+    /// <summary>Stored file name of an optional full-art tile background (uploaded via <c>/images</c>), or null.</summary>
+    public string? Image { get; set; }
 }
 
 /// <summary>A brief light flash: jump the lights to a colour/brightness, hold, then restore the prior lighting.</summary>

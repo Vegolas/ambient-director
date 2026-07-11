@@ -1,4 +1,5 @@
 using RpgSceneMaker.Api.Models;
+using RpgSceneMaker.Api.Services;
 
 namespace RpgSceneMaker.Api.Validation;
 
@@ -16,6 +17,8 @@ public static class EventValidation
             throw new ArgumentException("Event id may only contain letters, digits, '-' and '_'.");
         if (string.IsNullOrWhiteSpace(evt.Name))
             throw new ArgumentException("Event name is required.");
+        if (evt.Image is not null && !ImageFileStorage.IsValidName(evt.Image))
+            throw new ArgumentException("Invalid image reference.");
 
         if (evt.Flash is { } flash)
         {

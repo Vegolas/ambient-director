@@ -30,6 +30,7 @@
                 <span>Id: <code>@_edit.Id</code> (fixed) — <code>/events/@_edit.Id/trigger</code></span>
             }
         </p>
+        <ArtField @bind-Image="_edit.Image" />
     </div>
 
     <RuneHeading>Light Flash</RuneHeading>
@@ -122,9 +123,15 @@ else
         @foreach (var (evt, index) in _events.Select((e, i) => (e, i)))
         {
             var (emoji, label) = SceneNaming.SplitName(evt.Name, "⚡", evt.Id);
-            <button class="scene-card @(_busyId == evt.Id ? "busy" : "")"
-                    style="animation-delay:@(index * 55)ms; --sc:@(SwatchColor(evt))"
+            var artUrl = Api.ImageUrl(evt.Image);
+            var hasArt = artUrl is not null;
+            <button class="scene-card @(_busyId == evt.Id ? "busy" : "") @(hasArt ? "art" : "")"
+                    style="animation-delay:@(index * 55)ms; --sc:@(SwatchColor(evt));@(hasArt ? $" --art:url('{artUrl}');" : "")"
                     @onclick="() => Trigger(evt.Id)">
+                @if (hasArt)
+                {
+                    <span class="scene-art"></span>
+                }
                 <span class="scene-swatch"></span>
                 <span class="card-edit" role="button" tabindex="0" aria-label="Edit event"
                       @onclick="() => Edit(evt)" @onclick:stopPropagation="true">✎</span>
@@ -160,6 +167,7 @@ else
 
     private async Task RefreshAsync()
     {
+        await Api.GetApiKeyAsync(); // cache the key so tile-art urls carry it
         _events = await Api.GetEventsAsync();
         _sounds = await Api.GetSoundsAsync();
         StateHasChanged();
@@ -209,6 +217,7 @@ else
             FlashBrightness = evt.Flash?.Brightness ?? 100,
             FlashDurationMs = evt.Flash?.DurationMs ?? 200,
             SoundEffects = [.. evt.SoundEffects ?? []],
+            Image = evt.Image,
         };
         _confirmDelete = false;
     }
