@@ -20,4 +20,10 @@ public class Sound
 
     /// <summary>When true the sound loops until stopped; otherwise it plays once.</summary>
     public bool Loop { get; set; }
+
+    /// <summary>The file's natural length in milliseconds, measured at import. Null means "not measured
+    /// yet" (predates duration tracking; backfilled lazily by <c>/sounds/list</c>). <c>0</c> is the
+    /// "tried, unmeasurable" sentinel persisted when the file won't decode, so the backfill doesn't
+    /// re-probe it forever — consumers treat any value <c>&lt;= 0</c> as an unknown length.</summary>
+    public int? DurationMs { get; set; }
 }
