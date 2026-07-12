@@ -155,6 +155,22 @@
 .tabbar a.active { color: var(--accent-text); background: var(--accent-soft); }
 .tabbar a.active .tab-ico { opacity: 1; }
 
+/* Emoji icons are a single glyph — the inherited label letter-spacing does nothing
+   useful here and only muddies centering. */
+.rail__item .icon, .tabbar a .tab-ico { letter-spacing: 0; }
+
+/* iOS renders Apple Color Emoji with a right-biased side bearing, so an emoji that
+   is geometrically centered (verified: delta 0 in Chromium) still *looks* shoved to
+   the right of its box. Nudge the centered chrome emoji back on WebKit/iOS only —
+   other platforms' emoji fonts are centered, so scoping avoids over-correcting there.
+   `translateX` is visual-only (no layout shift) and scales with the glyph's em.
+   Interim until the SVG icon swap (#30) removes emoji from the chrome entirely. */
+@supports (-webkit-touch-callout: none) {
+  .rail__item .icon,
+  .tabbar a .tab-ico,
+  .boot-die { transform: translateX(-0.08em); }
+}
+
 @media (min-width: 768px) {
   .rail { display: flex; }
   .tabbar { display: none; }
