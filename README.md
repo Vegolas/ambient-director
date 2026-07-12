@@ -200,6 +200,32 @@ Import your own sound effects and fire them from the panel's **Sounds** tab or f
 - `soundEffects`: sound ids (from the Sounds tab) played **over** whatever is already playing — a clap on top of the music. Omit for a flash-only event.
 - Fire an event with `GET|POST /events/{id}/trigger` (so a Stream Deck *Website* button works). Light and sound run concurrently and the response reports each part (HTTP 207 if something failed).
 
+## Language & translations
+
+The panel's language is switched at runtime from **Settings → Language** (saved per device, so each tablet/PC can differ). English and Polish ship in the box.
+
+Translations are plain JSON files on the server, so anyone — including an AI agent — can add or edit a language without touching code or rebuilding:
+
+- Files live in `%LocalAppData%\RpgSceneMaker\locales\` (override with `Locales:Path`). `en.json` and `pl.json` are written there on first run.
+- To **add a language**, copy `en.json` to `<code>.json` (a [BCP-47](https://en.wikipedia.org/wiki/IETF_language_tag) code — `de`, `fr`, `es`, `pt-BR`, …), set `name` to the language's own name (e.g. `Deutsch`), and translate the values under `strings`. It shows up in the picker after a reload (files are read on demand — no restart needed).
+- Any key you leave out falls back to English, so a partial translation is fine.
+
+  ```json
+  {
+    "name": "Deutsch",
+    "englishName": "German",
+    "strings": {
+      "nav.scenes": "Szenen",
+      "common.save": "Speichern"
+    }
+  }
+  ```
+
+- Keep any `{0}` placeholders in a value. Count-dependent keys come in `.one`/`.other` variants (plus `.few`/`.many` for languages such as Polish that need them).
+- English also ships embedded in the app, so deleting or corrupting a file on disk can never blank the panel.
+
+> Server-side error messages (e.g. a Hue or Spotify failure surfaced as a toast) are currently shown in English regardless of the selected language.
+
 ## Endpoint reference
 
 | Area | Endpoints |
@@ -216,6 +242,7 @@ Import your own sound effects and fire them from the panel's **Sounds** tab or f
 | Setup (assistant) | `GET/PUT /setup/assistant/config` (BYOK provider + key + model; the key is never echoed back), `GET\|POST /setup/assistant/disconnect` |
 | Assistant (chat) | `POST /assistant/send`, `GET /assistant/state?rev=…`, `GET\|POST /assistant/stop`, `GET\|POST /assistant/clear` |
 | MCP | `/mcp` — Model Context Protocol server (~23 tools over scenes/events/light FX) for Claude Code / Claude Desktop |
+| Translations | `GET /i18n/list` (available languages), `GET /i18n/{code}` (one language's strings) |
 
 All command endpoints accept GET or POST; parameters go in the query string.
 
@@ -235,5 +262,6 @@ Deployment-level config only — everything else is managed from the panel and s
 | `Security:ApiKey` | Optional shared secret. When set, all control endpoints require it (`X-Api-Key` header or `?apiKey=`); the panel asks for it under ⚙. |
 | `Database:Path` | SQLite file location, default `%LocalAppData%\RpgSceneMaker\rpg-scene-maker.db`. |
 | `Sounds:Path` | Folder for imported sound-effect audio files, default `%LocalAppData%\RpgSceneMaker\sounds`. |
+| `Locales:Path` | Folder for UI translation JSON files, default `%LocalAppData%\RpgSceneMaker\locales`. |
 
 > ⚠️ The API listens on your whole LAN by default so the iPad can reach it. On a home network the worst case is someone toggling your lights, but set `Security:ApiKey` anyway — one line of config, and the panel + Stream Deck both support it. Never expose the port to the internet.

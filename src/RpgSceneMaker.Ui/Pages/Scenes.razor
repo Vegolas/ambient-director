@@ -3,28 +3,29 @@
 @inject ApiClient Api
 @inject UiState Ui
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — Scenes</PageTitle>
+<PageTitle>Scene Maker — @L["scenes.title"]</PageTitle>
 
 <div class="page-head">
-    <h1>Scenes</h1>
+    <h1>@L["scenes.title"]</h1>
     @if (_scenes is not null)
     {
-        <span class="count">@_scenes.Count saved</span>
+        <span class="count">@L.Plural("scenes.savedCount", _scenes.Count)</span>
     }
 </div>
 
 @if (_scenes is null)
 {
-    <p class="empty-note">Loading scenes…</p>
+    <p class="empty-note">@L["scenes.loading"]</p>
 }
 else if (_scenes.Count == 0)
 {
-    <p class="empty-note">No scenes yet — tap below to create your first one.</p>
+    <p class="empty-note">@L["scenes.empty"]</p>
     <div class="scene-grid">
         <button class="scene-card ghost" @onclick="NewScene">
             <span class="scene-emoji"><Icon Name="add" /></span>
-            <span class="scene-name">New scene</span>
+            <span class="scene-name">@L["scenes.new"]</span>
         </button>
     </div>
 }
@@ -47,7 +48,7 @@ else
                 {
                     <span class="scene-art"></span>
                 }
-                <span class="card-edit" role="button" tabindex="0" aria-label="Edit scene"
+                <span class="card-edit" role="button" tabindex="0" aria-label='@L["scenes.editAria"]'
                       @onclick="() => Edit(scene.Id)" @onclick:stopPropagation="true"><Icon Name="edit" /></span>
                 <Glyph Emoji="@emoji" Fallback="scenes" />
                 <span class="scene-name">@label</span>
@@ -57,13 +58,13 @@ else
         {
             <button class="scene-card ghost" @onclick="NewScene">
                 <span class="scene-emoji"><Icon Name="add" /></span>
-                <span class="scene-name">New scene</span>
+                <span class="scene-name">@L["scenes.new"]</span>
             </button>
         }
     </div>
     @if (Searching && shown.Count == 0)
     {
-        <p class="empty-note">No scenes match “@Ui.SearchQuery”.</p>
+        <p class="empty-note">@L.Format("scenes.noMatch", Ui.SearchQuery)</p>
     }
 }
 
@@ -160,11 +161,11 @@ else
 
             if (result.FullySucceeded)
             {
-                Ui.ReportOk($"Scene \"{id}\" is live");
+                Ui.ReportOk(L.Format("scenes.toast.live", id));
             }
             else
             {
-                Ui.ReportError($"Partially applied. {result.ProblemSummary()}");
+                Ui.ReportError(L.Format("scenes.toast.partial", result.ProblemSummary()));
             }
         }
         finally

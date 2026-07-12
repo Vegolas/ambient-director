@@ -89,6 +89,37 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         catch { return []; }
     }
 
+    // ---------- UI language (code persisted per-device; strings fetched from the server) ----------
+
+    private string? _lang;
+    private bool _langLoaded;
+
+    /// <summary>The saved UI language code for this device, or null when never chosen (use the default).</summary>
+    public async Task<string?> GetLanguageAsync()
+    {
+        if (!_langLoaded)
+        {
+            _lang = await js.InvokeAsync<string?>("localStorage.getItem", "lang");
+            _langLoaded = true;
+        }
+        return _lang;
+    }
+
+    public async Task SetLanguageAsync(string code)
+    {
+        _lang = code;
+        _langLoaded = true;
+        await js.InvokeVoidAsync("localStorage.setItem", "lang", code);
+    }
+
+    /// <summary>Languages offered by the server's locales folder; empty (silent) when offline.</summary>
+    public async Task<List<LocaleInfo>> GetLocalesAsync() =>
+        await GetAsync<List<LocaleInfo>>("i18n/list") ?? [];
+
+    /// <summary>One language's string table, or null if unknown/offline.</summary>
+    public Task<LocaleDocument?> GetLocaleAsync(string code) =>
+        GetAsync<LocaleDocument?>($"i18n/{Uri.EscapeDataString(code)}");
+
     // ---------- scenes ----------
 
     public async Task<List<SceneDto>> GetScenesAsync() =>
@@ -100,8 +131,9 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
     public async Task<List<RegisteredLightInfo>> GetRegisteredLightsAsync() =>
         await GetAsync<List<RegisteredLightInfo>>("lights/list") ?? [];
 
-    /// <summary>Restore the configured default lighting (the header's reset button). 400s if none is set.</summary>
-    public Task<bool> ResetLightsToDefaultAsync() => CommandAsync("lights/default", "Lights reset to default");
+    /// <summary>Restore the configured default lighting (the header's reset button). 400s if none is set.
+    /// The success toast text is passed by the caller so it can be localized (ApiClient has no localizer).</summary>
+    public Task<bool> ResetLightsToDefaultAsync(string? okMessage = null) => CommandAsync("lights/default", okMessage);
 
     public Task<SceneDto?> GetSceneAsync(string id) => GetAsync<SceneDto?>($"scenes/{Uri.EscapeDataString(id)}");
 
@@ -239,8 +271,8 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
     public Task<(List<SpotifyDeviceDto>? Result, string? Error)> GetSpotifyDevicesAsync() =>
         FetchAsync<List<SpotifyDeviceDto>>(HttpMethod.Get, "setup/spotify/devices");
 
-    public Task<bool> DisconnectSpotifyAsync() =>
-        CommandAsync("setup/spotify/disconnect", "Spotify disconnected");
+    public Task<bool> DisconnectSpotifyAsync(string? okMessage = null) =>
+        CommandAsync("setup/spotify/disconnect", okMessage);
 
     public Task<(List<SpotifyPlaylistDto>? Result, string? Error)> GetSpotifyPlaylistsAsync() =>
         FetchAsync<List<SpotifyPlaylistDto>>(HttpMethod.Get, "music/playlists");
@@ -293,8 +325,8 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         return true;
     }
 
-    public Task<bool> DisconnectAssistantAsync() =>
-        CommandAsync("setup/assistant/disconnect", "Assistant disconnected");
+    public Task<bool> DisconnectAssistantAsync(string? okMessage = null) =>
+        CommandAsync("setup/assistant/disconnect", okMessage);
 
     // ---------- logs ----------
 
@@ -302,7 +334,7 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
     public async Task<List<LogEntryDto>> GetLogsAsync() =>
         await GetAsync<List<LogEntryDto>>("logs/list") ?? [];
 
-    public Task<bool> ClearLogsAsync() => CommandAsync("logs/clear", "Logs cleared");
+    public Task<bool> ClearLogsAsync(string? okMessage = null) => CommandAsync("logs/clear", okMessage);
 
     /// <summary>Runtime diagnostics for developer mode; silent on failure like the other pollers.</summary>
     public Task<DiagnosticsDto?> GetDiagnosticsAsync() => GetAsync<DiagnosticsDto?>("diagnostics");

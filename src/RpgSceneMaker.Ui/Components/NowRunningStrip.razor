@@ -5,13 +5,14 @@
 @implements IDisposable
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject Localizer L
 
 @if (_activeId is not null)
 {
     <div class="now-running" role="status" aria-live="polite">
         <span class="now-running__emoji" aria-hidden="true"><Glyph Emoji="@_emoji" Fallback="scenes" /></span>
         <div class="now-running__text">
-            <span class="now-running__label">Now Running</span>
+            <span class="now-running__label">@L["nowRunning.label"]</span>
             <span class="now-running__name">@(_name ?? _activeId)</span>
         </div>
     </div>

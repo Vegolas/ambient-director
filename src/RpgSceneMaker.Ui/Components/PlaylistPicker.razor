@@ -1,8 +1,10 @@
 @* The Spotify playlist list, with loading and empty states. Raises OnPick with the chosen playlist.
    SelectedUri highlights the current pick (leave null when clicking should act immediately). *@
+@inject Localizer L
+
 @if (Playlists is null)
 {
-    <p class="empty-note">Reading your Spotify playlists…</p>
+    <p class="empty-note">@L["playlistPicker.loading"]</p>
 }
 else if (Playlists.Count == 0)
 {
@@ -13,7 +15,7 @@ else
     <div class="klist" style="@ListStyle">
         @foreach (var pl in Playlists)
         {
-            var hint = $"{pl.TrackCount} tracks";
+            var hint = L.Plural("playlistPicker.trackCount", pl.TrackCount);
             <KRow IconName="playlist" Title="@pl.Name" Hint="@hint"
                   Selected="@(SelectedUri == pl.Uri)" OnClick="() => OnPick.InvokeAsync(pl)" />
         }

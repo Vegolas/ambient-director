@@ -2,62 +2,63 @@
 @implements IDisposable
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject Localizer L
 
-<PageTitle>Scene Maker — Logs</PageTitle>
+<PageTitle>Scene Maker — @L["logs.title"]</PageTitle>
 
-<div class="page-head"><h1>Logs</h1></div>
+<div class="page-head"><h1>@L["logs.title"]</h1></div>
 
-<SectionHeading>Diagnostics</SectionHeading>
+<SectionHeading>@L["logs.diagnostics"]</SectionHeading>
 <div class="panel">
     @if (_diag is not null)
     {
         <dl class="diag">
-            <dt>Version</dt><dd>@_diag.Version</dd>
-            <dt>Environment</dt><dd>@_diag.Environment</dd>
-            <dt>Uptime</dt><dd>@Uptime(_diag.StartedAt)</dd>
-            <dt>Light provider</dt><dd>@LightFormat.ProviderLabel(_diag.LightProvider)</dd>
-            <dt>Spotify</dt><dd>@(_diag.SpotifyConnected ? "Connected" : "Not connected")</dd>
-            <dt>Soundboard</dt>
-            <dd>@(_diag.SoundboardSupported ? $"Supported — {_diag.PlayingSoundCount} playing" : "Unsupported on this OS")</dd>
-            <dt>Scenes</dt><dd>@_diag.SceneCount</dd>
-            <dt>Sounds</dt><dd>@_diag.SoundCount</dd>
-            <dt>Events</dt><dd>@_diag.EventCount</dd>
-            <dt>Database</dt><dd><code>@_diag.DatabasePath</code></dd>
-            <dt>Sounds folder</dt><dd><code>@_diag.SoundsPath</code></dd>
+            <dt>@L["logs.version"]</dt><dd>@_diag.Version</dd>
+            <dt>@L["logs.environment"]</dt><dd>@_diag.Environment</dd>
+            <dt>@L["logs.uptime"]</dt><dd>@Uptime(_diag.StartedAt)</dd>
+            <dt>@L["logs.lightProvider"]</dt><dd>@L[LightFormat.ProviderLabelKey(_diag.LightProvider)]</dd>
+            <dt>Spotify</dt><dd>@(_diag.SpotifyConnected ? L["logs.connected"] : L["logs.notConnected"])</dd>
+            <dt>@L["logs.soundboard"]</dt>
+            <dd>@(_diag.SoundboardSupported ? L.Format("logs.soundboardSupported", _diag.PlayingSoundCount) : L["logs.soundboardUnsupported"])</dd>
+            <dt>@L["logs.scenes"]</dt><dd>@_diag.SceneCount</dd>
+            <dt>@L["logs.sounds"]</dt><dd>@_diag.SoundCount</dd>
+            <dt>@L["logs.events"]</dt><dd>@_diag.EventCount</dd>
+            <dt>@L["logs.database"]</dt><dd><code>@_diag.DatabasePath</code></dd>
+            <dt>@L["logs.soundsFolder"]</dt><dd><code>@_diag.SoundsPath</code></dd>
         </dl>
     }
     else if (_diagLoaded)
     {
-        <p class="empty-note" style="margin:0.4rem 0">Diagnostics unavailable.</p>
+        <p class="empty-note" style="margin:0.4rem 0">@L["logs.diagUnavailable"]</p>
     }
     else
     {
-        <p class="empty-note" style="margin:0.4rem 0">Gathering diagnostics…</p>
+        <p class="empty-note" style="margin:0.4rem 0">@L["logs.diagGathering"]</p>
     }
     <div class="btn-row" style="margin-top:0.8rem">
-        <button class="btn btn--small" @onclick="RefreshDiagnosticsAsync">Refresh</button>
+        <button class="btn btn--small" @onclick="RefreshDiagnosticsAsync">@L["common.refresh"]</button>
     </div>
 </div>
 
-<SectionHeading>Recent</SectionHeading>
+<SectionHeading>@L["logs.recent"]</SectionHeading>
 
 <div class="chip-row">
-    <Chip On="@(_filter == LogFilter.All)" OnClick="@(() => _filter = LogFilter.All)">All</Chip>
-    <Chip On="@(_filter == LogFilter.Warnings)" OnClick="@(() => _filter = LogFilter.Warnings)">Warnings</Chip>
-    <Chip On="@(_filter == LogFilter.Errors)" OnClick="@(() => _filter = LogFilter.Errors)">Errors</Chip>
-    <button class="btn btn--small" @onclick="ClearAsync">Clear</button>
+    <Chip On="@(_filter == LogFilter.All)" OnClick="@(() => _filter = LogFilter.All)">@L["logs.filterAll"]</Chip>
+    <Chip On="@(_filter == LogFilter.Warnings)" OnClick="@(() => _filter = LogFilter.Warnings)">@L["logs.filterWarnings"]</Chip>
+    <Chip On="@(_filter == LogFilter.Errors)" OnClick="@(() => _filter = LogFilter.Errors)">@L["logs.filterErrors"]</Chip>
+    <button class="btn btn--small" @onclick="ClearAsync">@L["logs.clear"]</button>
 </div>
 
 @if (_logs is null)
 {
-    <p class="empty-note">Reading the ledger…</p>
+    <p class="empty-note">@L["logs.reading"]</p>
 }
 else
 {
     var rows = Filtered().ToList();
     @if (rows.Count == 0)
     {
-        <p class="empty-note">No log entries@(_filter == LogFilter.All ? " yet" : " at this level").</p>
+        <p class="empty-note">@(_filter == LogFilter.All ? L["logs.emptyAll"] : L["logs.emptyLevel"])</p>
     }
     else
     {
@@ -128,7 +129,7 @@ else
 
     private async Task ClearAsync()
     {
-        if (await Api.ClearLogsAsync())
+        if (await Api.ClearLogsAsync(L["logs.toast.cleared"]))
             await RefreshAsync();
     }
 

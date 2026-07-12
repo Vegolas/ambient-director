@@ -18,5 +18,7 @@ builder.Services.AddScoped(sp => new HttpClient
 builder.Services.AddSingleton<UiState>();
 builder.Services.AddScoped<ApiClient>();
 builder.Services.AddScoped<ViewTransition>();
+// Runtime translator: loads UI strings from the server's /i18n endpoints (see Localizer / App.razor boot gate).
+builder.Services.AddScoped<Localizer>();
 
 await builder.Build().RunAsync();

@@ -6,46 +6,47 @@
 @inject UiState Ui
 @inject NavigationManager Nav
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — @(_isNew ? "New effect" : "Edit effect")</PageTitle>
+<PageTitle>Scene Maker — @(_isNew ? L["effectEditor.titleNew"] : L["effectEditor.titleEdit"])</PageTitle>
 
 @if (_loading)
 {
-    <p class="empty-note">Unrolling the scroll…</p>
+    <p class="empty-note">@L["effectEditor.loading"]</p>
 }
 else
 {
-    <div class="page-head"><h1>@(_isNew ? "New Light FX" : "Edit Light FX")</h1></div>
+    <div class="page-head"><h1>@(_isNew ? L["effectEditor.titleNew"] : L["effectEditor.titleEdit"])</h1></div>
 
     <div class="panel">
         <div class="field" style="margin-bottom:0">
-            <label for="fx-name">Name</label>
+            <label for="fx-name">@L["effectEditor.nameLabel"]</label>
             <input id="fx-name" type="text" value="@_edit.Name" @oninput="e => _edit.Name = e.Value?.ToString() ?? string.Empty"
-                   placeholder="e.g. Torch flicker" />
+                   placeholder='@L["effectEditor.namePlaceholder"]' />
         </div>
         <p class="hint" style="margin-top:0.6rem">
             @if (_isNew)
             {
-                <span>Id: <code>@(CurrentId is { Length: > 0 } cid ? cid : "…")</code></span>
+                <span>@L["effectEditor.idLabel"] <code>@(CurrentId is { Length: > 0 } cid ? cid : "…")</code></span>
             }
             else
             {
-                <span>Id: <code>@_edit.Id</code> (fixed)</span>
+                <span>@L["effectEditor.idLabel"] <code>@_edit.Id</code> @L["effectEditor.idFixed"]</span>
             }
         </p>
     </div>
 
-    <SectionHeading>Keyframes</SectionHeading>
+    <SectionHeading>@L["effectEditor.keyframes"]</SectionHeading>
     <div class="panel">
         <KeyframeEditor Effect="_edit.Fx" />
     </div>
 
-    <SectionHeading>Test</SectionHeading>
+    <SectionHeading>@L["common.test"]</SectionHeading>
     <div class="panel">
         <div class="field">
-            <label for="fx-test-light">On light</label>
+            <label for="fx-test-light">@L["effectEditor.onLight"]</label>
             <select id="fx-test-light" value="@_testLight" @onchange="e => _testLight = e.Value?.ToString() ?? string.Empty">
-                <option value="">All lights</option>
+                <option value="">@L["common.allLights"]</option>
                 @foreach (var reg in _lights)
                 {
                     <option value="@reg.Key">@reg.Name</option>
@@ -53,30 +54,30 @@ else
             </select>
         </div>
         <div class="tl-insp-row">
-            <label>For</label>
+            <label>@L["effectEditor.forLabel"]</label>
             <input type="number" min="1" max="60" step="1" value="@_testSeconds" @onchange="SetTestSeconds" />
-            <span class="tl-unit">seconds</span>
+            <span class="tl-unit">@L["common.seconds"]</span>
         </div>
         <div class="btn-row" style="margin-top:0.8rem">
-            <button class="btn" @onclick="Test" disabled="@_busy"><Icon Name="play" /> Test</button>
-            <button class="btn" @onclick="StopTest" disabled="@_busy"><Icon Name="stop" /> Stop</button>
+            <button class="btn" @onclick="Test" disabled="@_busy"><Icon Name="play" /> @L["common.test"]</button>
+            <button class="btn" @onclick="StopTest" disabled="@_busy"><Icon Name="stop" /> @L["common.stop"]</button>
         </div>
-        <p class="hint" style="margin-top:0.6rem">Save first — the test runs the saved effect on the server's lights.</p>
+        <p class="hint" style="margin-top:0.6rem">@L["effectEditor.testHint"]</p>
     </div>
 
-    <SectionHeading>Save</SectionHeading>
+    <SectionHeading>@L["common.save"]</SectionHeading>
     <div class="btn-row">
-        <button class="btn btn--primary" @onclick="Save" disabled="@_busy">Save</button>
-        <button class="btn" @onclick="Cancel" disabled="@_busy">Cancel</button>
+        <button class="btn btn--primary" @onclick="Save" disabled="@_busy">@L["common.save"]</button>
+        <button class="btn" @onclick="Cancel" disabled="@_busy">@L["common.cancel"]</button>
     </div>
     @if (!_isNew)
     {
         <div class="btn-row" style="margin-top:0.7rem">
             <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? "Really delete?" : "Delete effect")
+                @(_confirmDelete ? L["common.reallyDelete"] : L["effectEditor.deleteBtn"])
             </button>
         </div>
-        <p class="hint" style="margin-top:0.6rem">Deleting detaches this FX: every scene / event using it keeps a private copy of the keyframes.</p>
+        <p class="hint" style="margin-top:0.6rem">@L["effectEditor.deleteHint"]</p>
     }
 }
 
@@ -109,7 +110,7 @@ else
             var fx = all.FirstOrDefault(f => string.Equals(f.Id, FxId, StringComparison.OrdinalIgnoreCase));
             if (fx is null)
             {
-                Ui.ReportError($"Couldn't load effect \"{FxId}\".");
+                Ui.ReportError(L.Format("effectEditor.toast.loadFailed", FxId));
                 Nav.NavigateTo("effects");
                 return;
             }
@@ -129,19 +130,19 @@ else
     {
         if (string.IsNullOrWhiteSpace(_edit.Name))
         {
-            Ui.ReportError("Give the effect a name first.");
+            Ui.ReportError(L["effectEditor.toast.nameFirst"]);
             return;
         }
         if (_edit.Fx.Keyframes.Count == 0)
         {
-            Ui.ReportError("Add at least one keyframe.");
+            Ui.ReportError(L["effectEditor.toast.needKeyframe"]);
             return;
         }
 
         var id = CurrentId;
         if (string.IsNullOrEmpty(id))
         {
-            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            Ui.ReportError(L["effectEditor.toast.noId"]);
             return;
         }
 
@@ -155,7 +156,7 @@ else
                 Ui.ReportError(error);
                 return;
             }
-            Ui.ReportOk($"Saved effect \"{id}\"");
+            Ui.ReportOk(L.Format("effectEditor.toast.saved", id));
             await Vt.NavigateAsync("effects");
         }
         finally { _busy = false; }
@@ -166,17 +167,17 @@ else
     {
         if (string.IsNullOrWhiteSpace(_edit.Name))
         {
-            Ui.ReportError("Give the effect a name first.");
+            Ui.ReportError(L["effectEditor.toast.nameFirst"]);
             return;
         }
         if (_edit.Fx.Keyframes.Count == 0)
         {
-            Ui.ReportError("Add at least one keyframe.");
+            Ui.ReportError(L["effectEditor.toast.needKeyframe"]);
             return;
         }
 
         var id = CurrentId;
-        if (string.IsNullOrEmpty(id)) { Ui.ReportError("Couldn't derive an id from that name."); return; }
+        if (string.IsNullOrEmpty(id)) { Ui.ReportError(L["effectEditor.toast.noIdShort"]); return; }
         _edit.Id = id;
 
         _busy = true;
@@ -220,12 +221,12 @@ else
             var (ok, error) = await Api.DeleteLightFxAsync(_edit.Id);
             if (ok)
             {
-                Ui.ReportOk($"Deleted effect \"{_edit.Id}\"");
+                Ui.ReportOk(L.Format("effectEditor.toast.deleted", _edit.Id));
                 await Vt.NavigateAsync("effects");
             }
             else
             {
-                Ui.ReportError(error ?? "Delete failed.");
+                Ui.ReportError(error ?? L["effectEditor.toast.deleteFailed"]);
             }
         }
         finally { _busy = false; }

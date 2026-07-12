@@ -3,29 +3,30 @@
 @inject ApiClient Api
 @inject UiState Ui
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — Sounds</PageTitle>
+<PageTitle>Scene Maker — @L["nav.sounds"]</PageTitle>
 
 <div class="page-head">
-    <h1>Soundboard</h1>
+    <h1>@L["sounds.title"]</h1>
     @if (_sounds is not null)
     {
-        <span class="count">@_sounds.Count sound@(_sounds.Count == 1 ? "" : "s")</span>
+        <span class="count">@L.Plural("sounds.count", _sounds.Count)</span>
     }
 </div>
 
 <div class="panel">
     <div class="field" style="margin-bottom:0">
-        <label for="snd-import">Import a sound</label>
+        <label for="snd-import">@L["sounds.importLabel"]</label>
         <InputFile id="snd-import" OnChange="OnFilePicked" accept=".mp3,.wav,.ogg" disabled="@_uploading" />
         <p class="hint" style="margin-top:0.5rem">
             @if (_uploading)
             {
-                <span>Importing @_uploadName…</span>
+                <span>@L.Format("sounds.importing", _uploadName)</span>
             }
             else
             {
-                <span>MP3, WAV or OGG. Plays through the <strong>server's</strong> speakers.</span>
+                <span>@L["sounds.importHint"]</span>
             }
         </p>
     </div>
@@ -33,31 +34,31 @@
 
 @if (_sounds is null)
 {
-    <p class="empty-note">Uncorking the sound vials…</p>
+    <p class="empty-note">@L["sounds.loading"]</p>
 }
 else if (_sounds.Count == 0)
 {
-    <p class="empty-note">No sounds yet — import one above.</p>
+    <p class="empty-note">@L["sounds.empty"]</p>
 }
 else
 {
     @if (_playing.Count > 0)
     {
         <div class="btn-row" style="margin:0.2rem 0 1rem">
-            <button class="btn" @onclick="StopAll"><Icon Name="stop" /> Stop all (@_playing.Count)</button>
+            <button class="btn" @onclick="StopAll"><Icon Name="stop" /> @L.Format("sounds.stopAll", _playing.Count)</button>
         </div>
     }
 
     var shown = _sounds.Where(SoundMatches).ToList();
     @if (Searching && shown.Count == 0)
     {
-        <p class="empty-note">No sounds match “@Ui.SearchQuery”.</p>
+        <p class="empty-note">@L.Format("sounds.noMatch", Ui.SearchQuery)</p>
     }
     else
     {
         @foreach (var group in shown.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "Uncategorized" : s.Category))
         {
-            <p class="section-h">@group.Key</p>
+            <p class="section-h">@(group.Key == "Uncategorized" ? L["sounds.uncategorized"] : group.Key)</p>
             <div class="sound-grid">
                 @foreach (var sound in group)
                 {
@@ -71,7 +72,7 @@ else
                         {
                             <span class="scene-art"></span>
                         }
-                        <span class="card-edit" role="button" tabindex="0" aria-label="Edit sound"
+                        <span class="card-edit" role="button" tabindex="0" aria-label='@L["sounds.editAria"]'
                               @onclick="() => Edit(sound.Id)" @onclick:stopPropagation="true"><Icon Name="edit" /></span>
                         <span class="krow-ico"><Icon Name="@(isPlaying ? "stop" : sound.Loop ? "repeat" : "sounds")" /></span>
                         <span class="krow-title">@sound.Name</span>
@@ -79,7 +80,7 @@ else
                 }
             </div>
         }
-        <p class="hint" style="margin-top:1rem">Tap to play; tap again to stop. Tap the edit corner to rename, set volume or looping.</p>
+        <p class="hint" style="margin-top:1rem">@L["sounds.tapHint"]</p>
     }
 }
 
@@ -159,14 +160,14 @@ else
             var (result, error) = await Api.UploadSoundAsync(file, name, "");
             if (result is not null)
             {
-                Ui.ReportOk($"Imported \"{result.Name}\"");
+                Ui.ReportOk(L.Format("sounds.toast.imported", result.Name));
                 await RefreshAsync();
                 // Open the editor so category / volume / loop can be set right away.
                 await Vt.NavigateAsync($"sounds/editor/{result.Id}");
             }
             else
             {
-                Ui.ReportError(error ?? "Import failed.");
+                Ui.ReportError(error ?? L["sounds.toast.importFailed"]);
             }
         }
         finally

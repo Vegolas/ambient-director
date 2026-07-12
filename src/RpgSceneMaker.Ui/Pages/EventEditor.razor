@@ -5,16 +5,17 @@
 @inject UiState Ui
 @inject NavigationManager Nav
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — @(_isNew ? "New event" : "Edit event")</PageTitle>
+<PageTitle>Scene Maker — @(_isNew ? L["eventEditor.titleNew"] : L["eventEditor.titleEdit"])</PageTitle>
 
 @if (_loading)
 {
-    <p class="empty-note">Unrolling the scroll…</p>
+    <p class="empty-note">@L["eventEditor.loading"]</p>
 }
 else
 {
-    <div class="page-head"><h1>@(_isNew ? "New Event" : "Edit Event")</h1></div>
+    <div class="page-head"><h1>@(_isNew ? L["eventEditor.titleNew"] : L["eventEditor.titleEdit"])</h1></div>
 
     <div class="panel">
         <div class="emoji-row">
@@ -24,79 +25,78 @@ else
             }
         </div>
         <div class="field" style="margin-top:1rem;margin-bottom:0">
-            <label for="evt-label">Name</label>
+            <label for="evt-label">@L["eventEditor.nameLabel"]</label>
             <input id="evt-label" type="text" value="@_label" @oninput="e => _label = e.Value?.ToString() ?? string.Empty"
-                   placeholder="e.g. Thunder" />
+                   placeholder='@L["eventEditor.namePlaceholder"]' />
         </div>
         <p class="hint" style="margin-top:0.6rem">
             @if (_isNew)
             {
-                <span>Stream Deck URL: <code>/events/@(CurrentId is { Length: > 0 } cid ? cid : "…")/trigger</code></span>
+                <span>@L["eventEditor.streamDeckUrl"] <code>/events/@(CurrentId is { Length: > 0 } cid ? cid : "…")/trigger</code></span>
             }
             else
             {
-                <span>Id: <code>@_edit.Id</code> (fixed) — <code>/events/@_edit.Id/trigger</code></span>
+                <span>@L["eventEditor.idLabel"] <code>@_edit.Id</code> @L["eventEditor.idFixed"] <code>/events/@_edit.Id/trigger</code></span>
             }
         </p>
         <ArtField @bind-Image="_edit.Image" />
     </div>
 
-    <SectionHeading>Timeline</SectionHeading>
+    <SectionHeading>@L["eventEditor.timeline"]</SectionHeading>
     <div class="panel">
         <p class="hint" style="margin-top:0">
-            Lay sound and light clips along the time axis. Drag a clip to move it, drag its right edge to resize,
-            tap it to edit below. Lights flash then restore the live scene; sounds overlay whatever's playing.
+            @L["eventEditor.timelineHint"]
         </p>
         <TimelineEditor Model="_edit.Timeline" Sounds="_sounds" Lights="_lights" Fx="_fxLibrary" />
     </div>
 
-    <SectionHeading>When it ends</SectionHeading>
+    <SectionHeading>@L["eventEditor.whenEnds"]</SectionHeading>
     <div class="panel">
         <Segmented TValue="string" Options="AfterOptions" Value="_edit.After.Mode" ValueChanged="m => _edit.After.Mode = m" />
         @if (_edit.After.Mode == "scene")
         {
             <div class="field" style="margin-top:1rem;margin-bottom:0">
-                <label for="evt-after-scene">Scene to activate</label>
+                <label for="evt-after-scene">@L["eventEditor.sceneToActivate"]</label>
                 <select id="evt-after-scene" value="@(_edit.After.SceneId ?? "")"
                         @onchange="e => _edit.After.SceneId = (e.Value?.ToString() is { Length: > 0 } v ? v : null)">
-                    <option value="">— pick a scene —</option>
+                    <option value="">@L["eventEditor.pickScene"]</option>
                     @foreach (var s in _scenes)
                     {
                         <option value="@s.Id">@s.Name</option>
                     }
                     @if (_edit.After.SceneId is { Length: > 0 } sid && !_scenes.Any(s => string.Equals(s.Id, sid, StringComparison.OrdinalIgnoreCase)))
                     {
-                        <option value="@sid">@sid (missing)</option>
+                        <option value="@sid">@L.Format("eventEditor.sceneMissing", sid)</option>
                     }
                 </select>
             </div>
-            <p class="hint" style="margin-top:0.6rem">Fully activates that scene — lights <em>and</em> music — when the event finishes.</p>
+            <p class="hint" style="margin-top:0.6rem">@L["eventEditor.afterSceneHintPre"] <em>@L["eventEditor.afterSceneHintAnd"]</em> @L["eventEditor.afterSceneHintPost"]</p>
         }
         else if (_edit.After.Mode == "default")
         {
-            <p class="hint" style="margin-top:0.8rem">Resets the lights to the configured default when the event finishes (music is left playing).</p>
+            <p class="hint" style="margin-top:0.8rem">@L["eventEditor.afterDefaultHint"]</p>
         }
         else
         {
-            <p class="hint" style="margin-top:0.8rem">Returns to whatever was showing before — the live scene, or the default light.</p>
+            <p class="hint" style="margin-top:0.8rem">@L["eventEditor.afterPreviousHint"]</p>
         }
     </div>
 
-    <SectionHeading>Save</SectionHeading>
+    <SectionHeading>@L["common.save"]</SectionHeading>
     <div class="btn-row">
-        <button class="btn btn--primary" @onclick="() => Save(test: false)" disabled="@_busy">Save</button>
-        <button class="btn" @onclick="() => Save(test: true)" disabled="@_busy">Save &amp; Test</button>
+        <button class="btn btn--primary" @onclick="() => Save(test: false)" disabled="@_busy">@L["common.save"]</button>
+        <button class="btn" @onclick="() => Save(test: true)" disabled="@_busy">@L["common.saveAndTest"]</button>
         @if (!_isNew && _runningId == _edit.Id)
         {
-            <button class="btn btn--danger" @onclick="Stop" disabled="@_busy"><Icon Name="stop" /> Stop</button>
+            <button class="btn btn--danger" @onclick="Stop" disabled="@_busy"><Icon Name="stop" /> @L["common.stop"]</button>
         }
-        <button class="btn" @onclick="Cancel" disabled="@_busy">Cancel</button>
+        <button class="btn" @onclick="Cancel" disabled="@_busy">@L["common.cancel"]</button>
     </div>
     @if (!_isNew)
     {
         <div class="btn-row" style="margin-top:0.7rem">
             <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? "Really delete?" : "Delete event")
+                @(_confirmDelete ? L["common.reallyDelete"] : L["eventEditor.deleteBtn"])
             </button>
         </div>
     }
@@ -116,8 +116,8 @@ else
     private List<LightFxDto> _fxLibrary = [];
 
     // Endings offered in the "When it ends" segmented control.
-    private static readonly (string, string)[] AfterOptions =
-        [("previous", "Return to previous"), ("scene", "Go to scene"), ("default", "Default lights")];
+    private (string, string)[] AfterOptions =>
+        [("previous", L["eventEditor.afterPrevious"]), ("scene", L["eventEditor.afterScene"]), ("default", L["eventEditor.afterDefault"])];
 
     private string _emoji = "";
     private string _label = "";
@@ -147,7 +147,7 @@ else
             var evt = await Api.GetEventAsync(EventId!);
             if (evt is null)
             {
-                Ui.ReportError($"Couldn't load event \"{EventId}\".");
+                Ui.ReportError(L.Format("eventEditor.toast.loadFailed", EventId));
                 Nav.NavigateTo("events");
                 return;
             }
@@ -198,17 +198,17 @@ else
     {
         if (string.IsNullOrWhiteSpace(_label))
         {
-            Ui.ReportError("Give the event a name first.");
+            Ui.ReportError(L["eventEditor.toast.nameFirst"]);
             return;
         }
         if (_edit.Timeline.IsEmpty)
         {
-            Ui.ReportError("An event needs at least one sound or light clip.");
+            Ui.ReportError(L["eventEditor.toast.needClip"]);
             return;
         }
         if (_edit.Timeline.EndMs > TimelineEdit.MaxEndMs)
         {
-            Ui.ReportError("The timeline must end within 10 minutes.");
+            Ui.ReportError(L["eventEditor.toast.tooLong"]);
             return;
         }
         // Drift needs at least two palette colours — catch it before the server 400s.
@@ -216,19 +216,19 @@ else
             l.Mode is "color" or "white" && l.Effect.Type == "drift" && l.Effect.Colors.Count < 2);
         if (badDrift is not null)
         {
-            Ui.ReportError("A Drift effect needs at least 2 colors.");
+            Ui.ReportError(L["eventEditor.toast.driftColors"]);
             return;
         }
         if (_edit.After.Mode == "scene" && string.IsNullOrWhiteSpace(_edit.After.SceneId))
         {
-            Ui.ReportError("Pick a scene to go to when the event ends, or choose another ending.");
+            Ui.ReportError(L["eventEditor.toast.pickSceneEnd"]);
             return;
         }
 
         var id = CurrentId;
         if (string.IsNullOrEmpty(id))
         {
-            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            Ui.ReportError(L["eventEditor.toast.noId"]);
             return;
         }
 
@@ -250,9 +250,9 @@ else
                 var result = await Api.TriggerEventAsync(id);
                 if (result is null) return;
                 if (result.FullySucceeded)
-                    Ui.ReportOk($"Saved — event \"{id}\" fired");
+                    Ui.ReportOk(L.Format("eventEditor.toast.savedFired", id));
                 else
-                    Ui.ReportError($"Saved, but partially fired. {result.ProblemSummary()}");
+                    Ui.ReportError(L.Format("eventEditor.toast.savedPartial", result.ProblemSummary()));
                 await PollAsync();
                 // On create, keep editing the freshly-made event rather than re-creating it.
                 if (_isNew)
@@ -260,7 +260,7 @@ else
             }
             else
             {
-                Ui.ReportOk($"Saved event \"{id}\"");
+                Ui.ReportOk(L.Format("eventEditor.toast.saved", id));
                 await Vt.NavigateAsync("events");
             }
         }
@@ -280,12 +280,12 @@ else
             var (ok, error) = await Api.DeleteEventAsync(_edit.Id);
             if (ok)
             {
-                Ui.ReportOk($"Deleted event \"{_edit.Id}\"");
+                Ui.ReportOk(L.Format("eventEditor.toast.deleted", _edit.Id));
                 await Vt.NavigateAsync("events");
             }
             else
             {
-                Ui.ReportError(error ?? "Delete failed.");
+                Ui.ReportError(error ?? L["eventEditor.toast.deleteFailed"]);
             }
         }
         finally { _busy = false; }

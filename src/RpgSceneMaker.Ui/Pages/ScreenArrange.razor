@@ -3,16 +3,17 @@
 @inject UiState Ui
 @inject NavigationManager Nav
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — Arrange @(_label is { Length: > 0 } l ? l : "screen")</PageTitle>
+<PageTitle>Scene Maker — @L["screenArrange.title"] @(_label is { Length: > 0 } l ? l : L["screenArrange.titleFallback"])</PageTitle>
 
 @if (_loading)
 {
-    <p class="empty-note">Opening the board…</p>
+    <p class="empty-note">@L["screenArrange.opening"]</p>
 }
 else
 {
-    <div class="page-head"><h1>Arrange</h1></div>
+    <div class="page-head"><h1>@L["screenArrange.title"]</h1></div>
     <div class="panel">
         <div class="emoji-row">
             @foreach (var e in Palette.Emojis)
@@ -21,21 +22,21 @@ else
             }
         </div>
         <div class="field" style="margin-top:1rem;margin-bottom:0">
-            <label for="screen-label">Name</label>
+            <label for="screen-label">@L["screenArrange.nameLabel"]</label>
             <input id="screen-label" type="text" value="@_label" @oninput="e => _label = e.Value?.ToString() ?? string.Empty" />
         </div>
         <ArtField @bind-Image="_edit.Image" />
         <div class="chip-row" style="margin-top:1rem">
-            <Chip On="_edit.Compact" OnClick="() => _edit.Compact = !_edit.Compact"><Icon Name="screens" /> Compact layout</Chip>
+            <Chip On="_edit.Compact" OnClick="() => _edit.Compact = !_edit.Compact"><Icon Name="screens" /> @L["screenArrange.compactLayout"]</Chip>
         </div>
-        <p class="hint" style="margin-top:0.4rem">Smaller tiles, so a board with lots of shortcuts fits more on screen.</p>
+        <p class="hint" style="margin-top:0.4rem">@L["screenArrange.compactHint"]</p>
     </div>
 
-    <SectionHeading>Shortcuts</SectionHeading>
+    <SectionHeading>@L["screenArrange.shortcutsHeading"]</SectionHeading>
     <div class="panel">
         @if (_edit.Tiles.Count == 0)
         {
-            <p class="hint" style="margin:0">No shortcuts yet — add some below.</p>
+            <p class="hint" style="margin:0">@L["screenArrange.noShortcuts"]</p>
         }
         else
         {
@@ -45,17 +46,17 @@ else
                     var v = View(tile);
                     <div class="krow arrange @(v.Missing ? "missing" : "")">
                         <span class="krow-ico">@if (!string.IsNullOrEmpty(v.Emoji)) { @v.Emoji } else { <Icon Name="@v.Icon" /> }</span>
-                        <span class="krow-title">@v.Label <small class="hint">@KindLabel(tile.Kind)</small></span>
-                        <button class="reorder" @onclick="() => Move(index, -1)" disabled="@(index == 0)" aria-label="Move up"><Icon Name="move-up" /></button>
-                        <button class="reorder" @onclick="() => Move(index, 1)" disabled="@(index == _edit.Tiles.Count - 1)" aria-label="Move down"><Icon Name="move-down" /></button>
-                        <button class="reorder danger" @onclick="() => RemoveAt(index)" aria-label="Remove shortcut"><Icon Name="close" /></button>
+                        <span class="krow-title">@v.Label <small class="hint">@L[KindLabel(tile.Kind)]</small></span>
+                        <button class="reorder" @onclick="() => Move(index, -1)" disabled="@(index == 0)" aria-label='@L["screenArrange.moveUp"]'><Icon Name="move-up" /></button>
+                        <button class="reorder" @onclick="() => Move(index, 1)" disabled="@(index == _edit.Tiles.Count - 1)" aria-label='@L["screenArrange.moveDown"]'><Icon Name="move-down" /></button>
+                        <button class="reorder danger" @onclick="() => RemoveAt(index)" aria-label='@L["screenArrange.removeShortcut"]'><Icon Name="close" /></button>
                     </div>
                 }
             </div>
         }
     </div>
 
-    <SectionHeading>Add a shortcut</SectionHeading>
+    <SectionHeading>@L["screenArrange.addHeading"]</SectionHeading>
     <div class="panel">
         <Segmented TValue="string" Options="AddOptions" Value="_addKind" ValueChanged="@(k => _addKind = k)" IconFor="AddKindIcon" />
 
@@ -64,7 +65,7 @@ else
             var items = PickerItems();
             @if (items.Count == 0)
             {
-                <p class="hint" style="margin-top:1rem">@EmptyHint()</p>
+                <p class="hint" style="margin-top:1rem">@L[EmptyHint()]</p>
             }
             else
             {
@@ -81,11 +82,11 @@ else
         else if (_addKind == "music")
         {
             <div class="field" style="margin-top:1rem;margin-bottom:0">
-                <label for="screen-search">Search tracks</label>
+                <label for="screen-search">@L["screenArrange.searchLabel"]</label>
                 <div class="field-row">
                     <input id="screen-search" type="text" @bind="_query" @bind:event="oninput"
-                           @onkeydown="OnSearchKeyDown" placeholder="song or artist…" />
-                    <button class="btn" @onclick="SearchAsync" disabled="@_searching">Search</button>
+                           @onkeydown="OnSearchKeyDown" placeholder='@L["screenArrange.searchPlaceholder"]' />
+                    <button class="btn" @onclick="SearchAsync" disabled="@_searching">@L["screenArrange.searchBtn"]</button>
                 </div>
             </div>
             @if (_results is { Count: > 0 })
@@ -98,41 +99,41 @@ else
                     }
                 </div>
             }
-            <p class="section-h">Playlists</p>
+            <p class="section-h">@L["screenArrange.playlists"]</p>
             <PlaylistPicker Playlists="_playlists" OnPick="pl => AddMusic(pl.Uri, pl.Name)">
                 <EmptyContent>
-                    <p class="hint" style="margin:0">Connect Spotify in <a href="settings">Settings</a> to pick playlists, or search for a track above.</p>
+                    <p class="hint" style="margin:0">@L["screenArrange.spotifyHintPre"]<a href="settings">@L["screenArrange.settingsLink"]</a>@L["screenArrange.spotifyHintPost"]</p>
                 </EmptyContent>
             </PlaylistPicker>
         }
         else if (_addKind == "lights")
         {
-            <p class="hint" style="margin-top:1rem">Adds a tile that resets the lights to the default you set in Settings.</p>
+            <p class="hint" style="margin-top:1rem">@L["screenArrange.lightsHint"]</p>
             <div class="btn-row" style="margin-top:0.6rem">
-                <button class="btn" @onclick="AddResetLights"><Icon Name="lights" /> Add reset-lights shortcut</button>
+                <button class="btn" @onclick="AddResetLights"><Icon Name="lights" /> @L["screenArrange.addResetBtn"]</button>
             </div>
         }
         else if (_addKind == "break")
         {
             <div class="field" style="margin-top:1rem;margin-bottom:0">
-                <label for="break-label">Section label (optional)</label>
-                <input id="break-label" type="text" @bind="_breakLabel" @bind:event="oninput" placeholder="e.g. Combat" />
+                <label for="break-label">@L["screenArrange.breakLabelLabel"]</label>
+                <input id="break-label" type="text" @bind="_breakLabel" @bind:event="oninput" placeholder='@L["screenArrange.breakPlaceholder"]' />
             </div>
-            <p class="hint" style="margin-top:0.6rem">Ends the current row so the next shortcuts start on a new line. Add a label to show it as a section heading.</p>
+            <p class="hint" style="margin-top:0.6rem">@L["screenArrange.breakHint"]</p>
             <div class="btn-row" style="margin-top:0.6rem">
-                <button class="btn" @onclick="AddBreak"><Icon Name="break" /> Add line break</button>
+                <button class="btn" @onclick="AddBreak"><Icon Name="break" /> @L["screenArrange.addBreakBtn"]</button>
             </div>
         }
     </div>
 
-    <SectionHeading>Save</SectionHeading>
+    <SectionHeading>@L["common.save"]</SectionHeading>
     <div class="btn-row">
-        <button class="btn btn--primary" @onclick="Save" disabled="@_busy">Save</button>
-        <button class="btn" @onclick="Cancel" disabled="@_busy">Cancel</button>
+        <button class="btn btn--primary" @onclick="Save" disabled="@_busy">@L["common.save"]</button>
+        <button class="btn" @onclick="Cancel" disabled="@_busy">@L["common.cancel"]</button>
     </div>
     <div class="btn-row" style="margin-top:0.7rem">
         <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-            @(_confirmDelete ? "Really delete?" : "Delete screen")
+            @(_confirmDelete ? L["common.reallyDelete"] : L["screenArrange.deleteBtn"])
         </button>
     </div>
 }
@@ -183,7 +184,7 @@ else
             .FirstOrDefault(s => string.Equals(s.Id, Id, StringComparison.OrdinalIgnoreCase));
         if (dto is null)
         {
-            Ui.ReportError($"Couldn't load screen \"{Id}\".");
+            Ui.ReportError(L.Format("screenArrange.toast.loadFail", Id));
             Nav.NavigateTo("screens");
             return;
         }
@@ -226,9 +227,9 @@ else
             case "music":
                 return new TileView("", "music", Label(tile), false);
             case "light-reset":
-                return new TileView("", "lights", "Reset lights", false);
+                return new TileView("", "lights", L["screenArrange.tile.resetLights"], false);
             case "break":
-                return new TileView("", "break", string.IsNullOrWhiteSpace(tile.Label) ? "Line break" : tile.Label, false);
+                return new TileView("", "break", string.IsNullOrWhiteSpace(tile.Label) ? L["screenArrange.tile.lineBreak"] : tile.Label, false);
             default:
                 return Gone(tile);
         }
@@ -240,8 +241,8 @@ else
 
     private static string KindLabel(string kind) => kind switch
     {
-        "scene" => "scene", "event" => "event", "sound" => "sound",
-        "music" => "music", "light-reset" => "lights", "break" => "line break", _ => kind,
+        "scene" => "screenArrange.kind.scene", "event" => "screenArrange.kind.event", "sound" => "screenArrange.kind.sound",
+        "music" => "screenArrange.kind.music", "light-reset" => "screenArrange.kind.lights", "break" => "screenArrange.kind.lineBreak", _ => kind,
     };
 
     private static bool Eq(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -266,18 +267,18 @@ else
     private void AddMusic(string uri, string label)
     {
         _edit.Tiles.Add(new ScreenTileDto("music", uri, label));
-        Ui.ReportOk($"Added \"{label}\"");
+        Ui.ReportOk(L.Format("screenArrange.toast.added", label));
     }
 
     private void AddResetLights()
     {
         if (_edit.Tiles.Any(t => t.Kind == "light-reset"))
         {
-            Ui.ReportOk("This board already has a reset-lights shortcut.");
+            Ui.ReportOk(L["screenArrange.toast.resetExists"]);
             return;
         }
-        _edit.Tiles.Add(new ScreenTileDto("light-reset", "", "Reset lights"));
-        Ui.ReportOk("Added reset-lights shortcut");
+        _edit.Tiles.Add(new ScreenTileDto("light-reset", "", L["screenArrange.tile.resetLights"]));
+        Ui.ReportOk(L["screenArrange.toast.resetAdded"]);
     }
 
     private void AddBreak()
@@ -285,7 +286,7 @@ else
         var label = _breakLabel.Trim();
         _edit.Tiles.Add(new ScreenTileDto("break", "", label));
         _breakLabel = "";
-        Ui.ReportOk(label.Length > 0 ? $"Added section \"{label}\"" : "Added line break");
+        Ui.ReportOk(label.Length > 0 ? L.Format("screenArrange.toast.sectionAdded", label) : L["screenArrange.toast.breakAdded"]);
     }
 
     private void Move(int index, int delta)
@@ -308,9 +309,9 @@ else
 
     private string EmptyHint() => _addKind switch
     {
-        "scene" => "No scenes yet — create them on the Scenes tab.",
-        "event" => "No events yet — create them on the Events tab.",
-        "sound" => "No sounds yet — import them on the Sounds tab.",
+        "scene" => "screenArrange.empty.scene",
+        "event" => "screenArrange.empty.event",
+        "sound" => "screenArrange.empty.sound",
         _ => "",
     };
 
@@ -340,7 +341,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(_label))
         {
-            Ui.ReportError("Give the screen a name first.");
+            Ui.ReportError(L["screenArrange.toast.nameFirst"]);
             return;
         }
         _edit.Name = ComposedName;
@@ -354,7 +355,7 @@ else
                 Ui.ReportError(error);
                 return;
             }
-            Ui.ReportOk($"Saved screen \"{_edit.Id}\"");
+            Ui.ReportOk(L.Format("screenArrange.toast.saved", _edit.Id));
             await Vt.NavigateAsync($"screens/{Id}");
         }
         finally { _busy = false; }
@@ -370,12 +371,12 @@ else
             var (ok, error) = await Api.DeleteScreenAsync(_edit.Id);
             if (ok)
             {
-                Ui.ReportOk($"Deleted screen \"{_edit.Id}\"");
+                Ui.ReportOk(L.Format("screenArrange.toast.deleted", _edit.Id));
                 await Vt.NavigateAsync("screens");
             }
             else
             {
-                Ui.ReportError(error ?? "Delete failed.");
+                Ui.ReportError(error ?? L["screenArrange.toast.deleteFail"]);
             }
         }
         finally { _busy = false; }

@@ -3,27 +3,28 @@
 @inject ApiClient Api
 @inject UiState Ui
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — Events</PageTitle>
+<PageTitle>Scene Maker — @L["events.title"]</PageTitle>
 
 <div class="page-head">
-    <h1>Events</h1>
+    <h1>@L["events.title"]</h1>
     @if (_events is not null)
     {
-        <span class="count">@_events.Count saved</span>
+        <span class="count">@L.Plural("events.savedCount", _events.Count)</span>
     }
 </div>
 
 @if (_events is null)
 {
-    <p class="empty-note">Gathering the omens…</p>
+    <p class="empty-note">@L["events.loading"]</p>
 }
 else
 {
     var shown = _events.Where(EventMatches).ToList();
     @if (_events.Count == 0)
     {
-        <p class="empty-note">No events yet — conjure a thunderclap or a horn blast below.</p>
+        <p class="empty-note">@L["events.empty"]</p>
     }
     <div class="scene-grid">
         @foreach (var (evt, index) in shown.Select((e, i) => (e, i)))
@@ -40,11 +41,11 @@ else
                     <span class="scene-art"></span>
                 }
                 <span class="scene-swatch"></span>
-                <span class="card-edit" role="button" tabindex="0" aria-label="Edit event"
+                <span class="card-edit" role="button" tabindex="0" aria-label='@L["events.editAria"]'
                       @onclick="() => Edit(evt.Id)" @onclick:stopPropagation="true"><Icon Name="edit" /></span>
                 @if (running)
                 {
-                    <span class="card-stop" role="button" tabindex="0" aria-label="Stop event"
+                    <span class="card-stop" role="button" tabindex="0" aria-label='@L["events.stopAria"]'
                           @onclick="Stop" @onclick:stopPropagation="true"><Icon Name="stop" /></span>
                 }
                 <Glyph Emoji="@emoji" Fallback="events" />
@@ -55,17 +56,17 @@ else
         {
             <button class="scene-card ghost" @onclick="NewEvent">
                 <span class="scene-emoji"><Icon Name="add" /></span>
-                <span class="scene-name">New event</span>
+                <span class="scene-name">@L["events.new"]</span>
             </button>
         }
     </div>
     @if (Searching && shown.Count == 0)
     {
-        <p class="empty-note">No events match “@Ui.SearchQuery”.</p>
+        <p class="empty-note">@L.Format("events.noMatch", Ui.SearchQuery)</p>
     }
     else if (_events.Count > 0)
     {
-        <p class="hint" style="margin-top:1rem">Tap to fire. Use the edit corner to change the timeline; a stop button appears while an event is playing.</p>
+        <p class="hint" style="margin-top:1rem">@L["events.hint"]</p>
     }
 }
 
@@ -129,9 +130,9 @@ else
             var result = await Api.TriggerEventAsync(id);
             if (result is null) return;
             if (result.FullySucceeded)
-                Ui.ReportOk($"Event \"{id}\" fired");
+                Ui.ReportOk(L.Format("events.toast.fired", id));
             else
-                Ui.ReportError($"Partially fired. {result.ProblemSummary()}");
+                Ui.ReportError(L.Format("events.toast.partial", result.ProblemSummary()));
             await PollAsync();
         }
         finally
