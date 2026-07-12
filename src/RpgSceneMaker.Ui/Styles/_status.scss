@@ -15,7 +15,8 @@
 .badge--offline { background: var(--danger-soft); border: 1px solid var(--danger-border); color: var(--danger); }
 .badge--offline .dot { background: var(--danger); }
 
-.badge--live { background: #000; color: var(--live); }
+/* LIVE reads as a pill in the reference screens (unlike the boxy ONLINE badge). */
+.badge--live { background: #000; color: var(--live); border-radius: var(--r-pill); padding: 4px 9px; }
 
 @keyframes dotPulse {
   0%, 100% { opacity: 1; }

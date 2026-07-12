@@ -38,6 +38,11 @@ Two projects under `src/`; the solution file lives at
   [MainLayout.razor](src/RpgSceneMaker.Ui/Layout/MainLayout.razor)) hosts always-visible
   [QuickControls.razor](src/RpgSceneMaker.Ui/Components/QuickControls.razor): music play/pause + volume
   (shown only when Spotify is connected) and a reset-lights button, on every tab.
+  **Styling is SCSS**: sources in [Styles/](src/RpgSceneMaker.Ui/Styles) (partials per concern, tokens in
+  `_tokens.scss`), compiled to `wwwroot/css/app.css` by `AspNetCore.SassCompiler` during `dotnet build` —
+  the generated CSS is gitignored, never edit it. The visual language is the **"Control Room" design
+  system**: tokens + rules live in [docs/design/](docs/design) (STYLE-GUIDE.md, tokens.css); follow it for
+  any UI work (solid dark surfaces, one blue accent, ≥44px targets, scene colors only for user content).
 
 ## Build & run
 
