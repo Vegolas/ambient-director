@@ -150,9 +150,9 @@ else
         }
     }
 
-    private Task NewEvent() => Vt.NavigateAsync("events/editor");
+    private Task NewEvent() => Vt.NavigateAsync("event-editor");
 
-    private Task Edit(string id) => Vt.NavigateAsync($"events/editor/{id}");
+    private Task Edit(string id) => Vt.NavigateAsync($"event-editor/{id}");
 
     public void Dispose()
     {
