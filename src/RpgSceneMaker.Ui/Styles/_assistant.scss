@@ -127,3 +127,82 @@
   gap: var(--s-3);
 }
 .chat-actions .btn { flex: 0 0 auto; }
+
+/* ============================================================
+   In-editor drawer variant.
+   The chat fills the drawer body; its log scrolls its own
+   container (not the window) and the composer is not sticky.
+   ============================================================ */
+.chat--drawer {
+  flex: 1;
+  min-height: 0;
+}
+.chat--drawer .chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.chat--drawer .chat-composer {
+  position: static;
+  bottom: auto;
+}
+
+/* ============================================================
+   Assistant drawer — a docked panel that lets the user chat
+   while the editor form stays visible/interactive behind it.
+   Bottom sheet on narrow/touch, right-docked on wide screens.
+   Sits above the tab bar (z 30) but below toasts (z 50); no
+   full-screen backdrop, so the editor is never blocked.
+   ============================================================ */
+.assistant-drawer {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: var(--tabbar-h);          /* clear the bottom tab bar on narrow screens */
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .35);
+}
+.assistant-drawer__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.assistant-drawer__title {
+  flex: 1;
+  min-width: 0;
+  font: var(--text-lg);
+  color: var(--text);
+}
+.assistant-drawer__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-4);
+  overflow: hidden;
+}
+
+/* Wide screens: the tab bar is gone, so dock full-height to the right instead. */
+@media (min-width: 768px) {
+  .assistant-drawer {
+    top: var(--topbar-h);
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: min(400px, 42vw);
+    max-height: none;
+    border-radius: 0;
+    border-top: none;
+    border-left: 1px solid var(--border-subtle);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
+  }
+}

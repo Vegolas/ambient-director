@@ -1,0 +1,28 @@
+@* In-editor assistant drawer: a docked panel (right-side on wide screens, bottom sheet on narrow/touch)
+   hosting AssistantChat while the editor stays visible and interactive behind it. Opened from an
+   editor's "Ask the assistant" button; it seeds the composer with the entity context draft and, when a
+   run finishes, lets the editor re-fetch the entity so the assistant's changes land in the form. *@
+@inject Localizer L
+
+<div class="assistant-drawer">
+    <div class="assistant-drawer__head">
+        <span class="assistant-drawer__title">@L["assistant.drawer.title"]</span>
+        <button class="btn btn--icon" @onclick="Close" aria-label='@L["assistant.drawer.close"]'><Icon Name="close" /></button>
+    </div>
+    <div class="assistant-drawer__body">
+        <AssistantChat Drawer="true" InitialDraft="@InitialDraft" OnRunCompleted="OnRunCompleted" />
+    </div>
+</div>
+
+@code {
+    // Composer pre-fill naming the entity being edited (assistant.ctxDraft.* via L.Format).
+    [Parameter] public string? InitialDraft { get; set; }
+
+    // Raised when a run completes — the editor re-fetches and re-applies the entity.
+    [Parameter] public EventCallback OnRunCompleted { get; set; }
+
+    // Raised by the close button.
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

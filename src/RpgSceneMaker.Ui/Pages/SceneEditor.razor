@@ -2,6 +2,7 @@
    otherwise match the API's GET /scenes/{id} on a full page load and 404 instead of the app. *@
 @page "/editor"
 @page "/editor/{SceneId}"
+@using System.Text.Json
 @implements IDisposable
 @inject ApiClient Api
 @inject UiState Ui
@@ -17,7 +18,18 @@
 }
 else
 {
-    <div class="page-head"><h1>@(_isNew ? L["sceneEditor.titleNew"] : L["sceneEditor.titleEdit"])</h1></div>
+    <div class="page-head">
+        <h1>@(_isNew ? L["sceneEditor.titleNew"] : L["sceneEditor.titleEdit"])</h1>
+        @if (Ui.AssistantConfigured && !_isNew)
+        {
+            <button class="btn" @onclick="AskAssistant"><Icon Name="assistant" /> @L["assistant.ask"]</button>
+        }
+    </div>
+
+    @if (_drawerOpen)
+    {
+        <AssistantDrawer InitialDraft="@AssistantDraft" OnRunCompleted="RefreshFromAssistantAsync" OnClose="() => _drawerOpen = false" />
+    }
 
     <div class="panel">
         <div class="emoji-row">
@@ -331,6 +343,13 @@ else
     private bool _confirmDelete;
     private Timer? _confirmTimer;
 
+    // assistant drawer + real-time refresh
+    private bool _drawerOpen;
+    // Serialized snapshot of the scene as last loaded/saved. When a run finishes and the persisted
+    // scene differs, the form is re-applied so the assistant's edits land live (see RefreshFromAssistantAsync).
+    private string? _snapshot;
+    private string AssistantDraft => L.Format("assistant.ctxDraft.scene", _edit.Id);
+
     protected override async Task OnInitializedAsync()
     {
         _isNew = string.IsNullOrEmpty(SceneId);
@@ -350,6 +369,7 @@ else
                 return;
             }
             LoadFrom(scene);
+            _snapshot = JsonSerializer.Serialize(scene);
         }
 
         // Spotify playlists are optional — the free-text URI field always works when not connected.
@@ -361,8 +381,17 @@ else
         _loading = false;
     }
 
+    // Maps a persisted scene onto the form fields. Idempotent — safe to call again on an assistant
+    // refresh — so it resets the conditionally-assigned state first rather than layering onto stale values.
     private void LoadFrom(SceneDto scene)
     {
+        _scope = LightScope.None;
+        _lightMode = LightMode.Color;
+        _perLight = [];
+        _music = MusicChoice.None;
+        _playId = null;
+        _setVolume = false;
+
         _edit.Id = scene.Id;
         _edit.Image = scene.Image;
         (_emoji, _label) = SceneNaming.SplitName(scene.Name);
@@ -413,6 +442,34 @@ else
         }
 
         _soundEffects = [.. scene.SoundEffects ?? []];
+    }
+
+    // Open the in-editor assistant drawer (no navigation) so the user chats while the form stays visible
+    // and the assistant's edits to this scene land live. Gated on !_isNew, so _edit.Id is always set.
+    private void AskAssistant() => _drawerOpen = true;
+
+    // Fired when an assistant run finishes. Re-fetch the scene; if it was deleted, leave the editor; if it
+    // changed since we last loaded/saved, re-apply it to the form and toast. Accepted v1 tradeoff: if the
+    // user had unsaved local edits, this overwrites them — they explicitly asked the assistant to edit it.
+    private async Task RefreshFromAssistantAsync()
+    {
+        if (_isNew || string.IsNullOrEmpty(_edit.Id)) return;
+
+        var scene = await Api.GetSceneAsync(_edit.Id);
+        if (scene is null)
+        {
+            Ui.ReportOk(L["assistant.toast.entityDeleted"]);
+            await Vt.NavigateAsync("");
+            return;
+        }
+
+        var json = JsonSerializer.Serialize(scene);
+        if (json == _snapshot) return; // nothing changed — don't clobber in-progress typing
+
+        _snapshot = json;
+        LoadFrom(scene);
+        Ui.ReportOk(L["assistant.toast.entityUpdated"]);
+        StateHasChanged();
     }
 
     private void ToggleEmoji(string e) => _emoji = _emoji == e ? "" : e;
@@ -483,6 +540,10 @@ else
                 // On create, keep editing the freshly-made scene rather than re-creating it.
                 if (_isNew)
                     await Vt.NavigateAsync($"editor/{id}");
+                // Staying on the page: refresh the snapshot so a later assistant refresh compares against
+                // what we just saved (not the load-time state) and doesn't spuriously re-apply.
+                else if (await Api.GetSceneAsync(id) is { } saved)
+                    _snapshot = JsonSerializer.Serialize(saved);
             }
             else
             {
