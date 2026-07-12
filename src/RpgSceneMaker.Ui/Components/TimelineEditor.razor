@@ -229,7 +229,7 @@ else if (SelectedLight is { } lc)
             {
                 @if (lc.Mode == "color")
                 {
-                    <SwatchGrid Selected="lc.Color" OnPick="hex => lc.Color = hex" Style="margin-top:1rem" />
+                    <SwatchGrid Selected="@lc.Color" OnPick="hex => lc.Color = hex" Style="margin-top:1rem" />
                     <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel='@L["timeline.brightnessAria"]' />
                 }
                 else
@@ -270,7 +270,7 @@ else if (SelectedLight is { } lc)
                             }
                         </div>
                     }
-                    <SwatchGrid Selected="null" ShowCustom="false" OnPick="hex => AddDriftColor(lc, hex)" Style="margin-top:0.6rem" />
+                    <SwatchGrid Selected="@null" ShowCustom="false" OnPick="hex => AddDriftColor(lc, hex)" Style="margin-top:0.6rem" />
                 }
             }
         }

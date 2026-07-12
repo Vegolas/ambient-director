@@ -67,7 +67,7 @@
 
             @if (sel.Mode == "color")
             {
-                <SwatchGrid Selected="sel.Color" OnPick="hex => sel.Color = hex" Style="margin-top:0.8rem" />
+                <SwatchGrid Selected="@sel.Color" OnPick="hex => sel.Color = hex" Style="margin-top:0.8rem" />
                 <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="sel.Brightness" AriaLabel='@L["keyframe.brightnessAria"]' />
             }
             else if (sel.Mode == "white")

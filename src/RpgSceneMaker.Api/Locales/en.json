@@ -644,6 +644,10 @@
     "playlistPicker.loading": "Reading your Spotify playlists…",
     "playlistPicker.trackCount.one": "{0} track",
     "playlistPicker.trackCount.other": "{0} tracks",
-    "swatchGrid.customColor": "Custom color"
+    "swatchGrid.customColor": "Custom color",
+    "colorPicker.hueAria": "Hue",
+    "colorPicker.satAria": "Saturation",
+    "colorPicker.lightAria": "Lightness",
+    "colorPicker.hexAria": "Hex colour code"
   }
 }

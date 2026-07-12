@@ -655,6 +655,10 @@
     "playlistPicker.trackCount.one": "{0} utwór",
     "playlistPicker.trackCount.few": "{0} utwory",
     "playlistPicker.trackCount.many": "{0} utworów",
-    "swatchGrid.customColor": "Kolor niestandardowy"
+    "swatchGrid.customColor": "Kolor niestandardowy",
+    "colorPicker.hueAria": "Barwa",
+    "colorPicker.satAria": "Nasycenie",
+    "colorPicker.lightAria": "Jasność",
+    "colorPicker.hexAria": "Szesnastkowy kod koloru"
   }
 }

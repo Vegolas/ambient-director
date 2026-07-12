@@ -1,19 +1,51 @@
-@* The mood colour palette. Highlights Selected (when set) and, unless ShowCustom is false,
-   offers a custom colour picker. Every pick — swatch or custom — raises OnPick with the hex. *@
+@* The mood colour palette. Highlights Selected (when set) and, unless ShowCustom is false, offers a custom
+   colour: a tile showing the current non-palette colour (e.g. one an agent picked) that opens an inline
+   H/S/L + hex picker for tweaking it. Every pick — swatch, slider or hex — raises OnPick with the hex. *@
+@using RpgSceneMaker.Ui.Shared
 @inject Localizer L
 
 <div class="swatch-grid" style="@Style">
     @foreach (var (hex, name) in Palette.Moods)
     {
-        <button class="swatch @(IsPicked(hex) ? "picked" : "")"
+        <button type="button" class="swatch @(IsPicked(hex) ? "picked" : "")"
                 style="background:@hex; --swc:@hex" title='@L[name]' aria-label='@L[name]'
-                @onclick="() => OnPick.InvokeAsync(hex)"></button>
+                @onclick="() => PickSwatch(hex)"></button>
     }
     @if (ShowCustom)
     {
-        <input type="color" value="@CustomValue" title='@L["swatchGrid.customColor"]' @onchange="OnCustomChanged" />
+        <button type="button" class="swatch swatch--custom @(IsCustomActive ? "picked" : "") @(_open ? "open" : "")"
+                style="@CustomTileStyle" title='@L["swatchGrid.customColor"]' aria-label='@L["swatchGrid.customColor"]'
+                aria-expanded="@_open" @onclick="ToggleOpen">
+            <span class="swc-edit"><Icon Name="edit" /></span>
+        </button>
     }
 </div>
+
+@if (ShowCustom && _open)
+{
+    <div class="color-picker">
+        <div class="cp-top">
+            <span class="cp-swatch" style="background:@DisplayHex"></span>
+            <input class="cp-hex" type="text" value="@_hexText" maxlength="7"
+                   spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"
+                   @oninput="e => _hexText = e.Value?.ToString() ?? string.Empty" @onchange="CommitHex"
+                   aria-label='@L["colorPicker.hexAria"]' />
+        </div>
+
+        @foreach (var ch in Channels)
+        {
+            <div class="cp-chan">
+                <span class="cp-chan-lbl">@ch.Label</span>
+                <div class="cp-bar">
+                    <span class="cp-bar-fill" style="background:@ch.Gradient"></span>
+                    <input type="range" min="0" max="@ch.Max" step="1" value="@ch.Value"
+                           @oninput="e => OnRange(ch, e)" aria-label="@ch.Aria" />
+                </div>
+                <span class="cp-chan-val">@ch.Value@ch.Suffix</span>
+            </div>
+        }
+    </div>
+}
 
 @code {
     private const string Fallback = "#ff8c2a";
@@ -24,11 +56,93 @@
     [Parameter] public bool ShowCustom { get; set; } = true;
     [Parameter] public string? Style { get; set; }
 
-    private string CustomValue => Selected ?? Fallback;
+    // Working H/S/L held locally so reducing saturation/lightness to an extreme doesn't lose the hue.
+    private int _h, _s, _l;
+    private bool _open;
+    private string _hexText = Fallback;
+
+    // True once the user nudged a slider since the last seed: display the live H/S/L colour rather than the exact
+    // incoming hex (the sliders can only approximate it, since RGB↔HSL isn't lossless).
+    private bool _dirty;
+
+    // The hex our H/S/L currently represents. A slider drag pins it to the value we emit, so the parent echoing
+    // that value straight back doesn't re-seed (and jitter) the sliders mid-drag; every other change to Selected
+    // (mount, an agent edit, switching keyframes, a mood tap, a typed hex) differs from it and re-seeds.
+    private string? _syncedHex;
+
+    private string CurrentHex => ColorConv.HslToHex(_h, _s, _l);
+    private string? NormSelected => ColorConv.Normalize(Selected);
+    private string DisplayHex => _dirty ? CurrentHex : (NormSelected ?? CurrentHex);
 
     private bool IsPicked(string hex) =>
-        Selected is not null && string.Equals(hex, Selected, StringComparison.OrdinalIgnoreCase);
+        NormSelected is { } ns && string.Equals(ns, ColorConv.Normalize(hex), StringComparison.OrdinalIgnoreCase);
 
-    private Task OnCustomChanged(ChangeEventArgs e) =>
-        OnPick.InvokeAsync(e.Value?.ToString() ?? CustomValue);
+    private static bool IsMood(string normHex) =>
+        Palette.Moods.Any(m => string.Equals(ColorConv.Normalize(m.Hex), normHex, StringComparison.OrdinalIgnoreCase));
+
+    // A colour that isn't one of the mood swatches (the case the agent creates): the custom tile owns it.
+    private bool IsCustomActive => NormSelected is { } ns && !IsMood(ns);
+
+    private string CustomTileStyle => IsCustomActive || _open ? $"background:{DisplayHex}" : "";
+
+    private record Chan(string Label, string Suffix, int Value, int Max, string Gradient, string Aria, Func<int, Task> Set);
+
+    private Chan[] Channels =>
+    [
+        new("H", "",  _h, 360, HueGradient,   L["colorPicker.hueAria"],   async v => { _h = Math.Clamp(v, 0, 360); await SliderChanged(); }),
+        new("S", "%", _s, 100, SatGradient,   L["colorPicker.satAria"],   async v => { _s = Math.Clamp(v, 0, 100); await SliderChanged(); }),
+        new("L", "%", _l, 100, LightGradient, L["colorPicker.lightAria"], async v => { _l = Math.Clamp(v, 0, 100); await SliderChanged(); }),
+    ];
+
+    // Hue bar is the full spectrum; saturation/lightness bars track the other two channels so they preview the move.
+    private const string HueGradient =
+        "linear-gradient(to right,#f00 0%,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,#f00 100%)";
+    private string SatGradient => $"linear-gradient(to right,{ColorConv.HslToHex(_h, 0, _l)},{ColorConv.HslToHex(_h, 100, _l)})";
+    private string LightGradient => $"linear-gradient(to right,#000,{ColorConv.HslToHex(_h, _s, 50)},#fff)";
+
+    protected override void OnInitialized() => Seed(NormSelected ?? Fallback);
+
+    // Follow the colour whenever Selected differs from what the sliders currently show — mount, an assistant
+    // edit, a different keyframe, a mood tap or a typed hex. The only value that matches (and so is left alone)
+    // is the one a live slider drag just emitted, keeping the drag smooth.
+    protected override void OnParametersSet()
+    {
+        if (NormSelected is { } ns && !string.Equals(ns, _syncedHex, StringComparison.OrdinalIgnoreCase))
+            Seed(ns);
+    }
+
+    private void Seed(string normHex)
+    {
+        if (ColorConv.TryParseRgb(normHex) is { } rgb)
+            (_h, _s, _l) = ColorConv.RgbToHsl(rgb.R, rgb.G, rgb.B);
+        _syncedHex = normHex;
+        _hexText = normHex;
+        _dirty = false;
+    }
+
+    private void ToggleOpen() => _open = !_open;
+
+    // Mood tap / typed hex are exact values: emit them verbatim and let OnParametersSet re-seed the sliders.
+    private Task PickSwatch(string hex) => OnPick.InvokeAsync(hex);
+
+    private Task OnRange(Chan ch, ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var v) ? ch.Set(v) : Task.CompletedTask;
+
+    // A slider move owns the H/S/L, so pin _syncedHex to the emitted value: the parent's echo won't re-seed.
+    private Task SliderChanged()
+    {
+        _dirty = true;
+        var hex = CurrentHex;
+        _syncedHex = hex;
+        _hexText = hex;
+        return OnPick.InvokeAsync(hex);
+    }
+
+    private Task CommitHex()
+    {
+        if (ColorConv.Normalize(_hexText) is { } norm)
+            return OnPick.InvokeAsync(norm); // valid: emit; OnParametersSet re-seeds the sliders to match
+        _hexText = DisplayHex;               // reject: snap the field back
+        return Task.CompletedTask;
+    }
 }

@@ -214,7 +214,7 @@ else
         @if (DefaultMode == "color")
         {
             <div style="margin-top:1rem">
-                <SwatchGrid Selected="_config.DefaultLight?.Color" OnPick="OnDefaultColorPicked" />
+                <SwatchGrid Selected="@_config.DefaultLight?.Color" OnPick="OnDefaultColorPicked" />
             </div>
             <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" Value="@(_config.DefaultLight?.Brightness ?? 80)"
                        ValueChanged="OnDefaultBrightnessChanged" AriaLabel='@L["settings.default.brightnessAria"]' />

@@ -132,15 +132,97 @@ input[type="range"]::-moz-range-thumb {
 .swatch:active { transform: scale(.94); }
 .swatch.picked { border-color: var(--text); }
 
-input[type="color"] {
-  width: 100%;
-  aspect-ratio: 1;
-  border: 2px dashed var(--border);
-  border-radius: var(--r-md);
-  background: none;
-  padding: 4px;
-  cursor: pointer;
+/* Custom-colour tile: shows the current non-palette colour (e.g. an agent's pick) and opens the picker. */
+.swatch--custom {
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  padding: 0;
 }
+.swatch--custom.open { border-color: var(--accent-border); }
+.swc-edit {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+/* ---------- elaborate colour picker (revealed under the swatch grid) ---------- */
+.color-picker {
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  background: var(--well);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.cp-top { display: flex; align-items: center; gap: var(--s-3); }
+.cp-swatch {
+  flex: 0 0 auto;
+  width: 48px; height: 48px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+}
+.cp-hex {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hit-min);
+  padding: 0 var(--s-4);
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: var(--text-md);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.cp-hex:focus { outline: none; border-color: var(--accent); }
+
+.cp-chan { display: flex; align-items: center; gap: var(--s-3); }
+.cp-chan-lbl {
+  flex: 0 0 auto;
+  width: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font: var(--text-tag);
+  letter-spacing: 1px;
+}
+.cp-chan-val {
+  flex: 0 0 auto;
+  width: 40px;
+  text-align: right;
+  color: var(--text-muted);
+  font: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.cp-bar {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--hit-min);
+  display: flex;
+  align-items: center;
+}
+.cp-bar-fill {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-subtle);
+  pointer-events: none;
+}
+.cp-bar input[type="range"] { position: relative; z-index: 1; width: 100%; }
+.cp-bar input[type="range"]::-webkit-slider-runnable-track { background: transparent; }
+.cp-bar input[type="range"]::-moz-range-track { background: transparent; }
 
 /* ---------- emoji picker ---------- */
 .emoji-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
