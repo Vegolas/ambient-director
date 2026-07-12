@@ -1,5 +1,5 @@
-@page "/events/editor"
-@page "/events/editor/{EventId}"
+@page "/event-editor"
+@page "/event-editor/{EventId}"
 @implements IDisposable
 @inject ApiClient Api
 @inject UiState Ui
@@ -256,7 +256,7 @@ else
                 await PollAsync();
                 // On create, keep editing the freshly-made event rather than re-creating it.
                 if (_isNew)
-                    await Vt.NavigateAsync($"events/editor/{id}");
+                    await Vt.NavigateAsync($"event-editor/{id}");
             }
             else
             {
