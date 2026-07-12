@@ -65,16 +65,23 @@ builder.Services.AddSingleton<SpotifyTokenCache>();
 builder.Services.AddSingleton<SpotifyAuthState>();
 builder.Services.AddHttpClient<SpotifyClient>(client => client.Timeout = TimeSpan.FromSeconds(10));
 
-// Anthropic: bring-your-own-key settings for the in-panel AI assistant (key + model, stored in SQLite).
-builder.Services.AddSingleton<AnthropicStore>();
+// Assistant: bring-your-own-key settings for the in-panel AI assistant (provider + key + model, in SQLite).
+builder.Services.AddSingleton<AssistantStore>();
 
 // Shared AI tool layer over scenes/events/light FX (+ read-only context and live control), consumed by the
 // MCP server and the in-panel assistant (both added in later commits).
 builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.AiToolService>();
 
-// The in-panel assistant: the tool executor (hand-written Anthropic Tool schemas over the façade) plus the
-// singleton service that runs the agentic loop and holds the polled transcript.
+// The in-panel assistant: the tool executor (provider-neutral tool schemas over the façade), the pluggable
+// backends (one IAssistantProvider each for Anthropic / OpenAI / Gemini), and the singleton service that
+// runs the agentic loop, selects the configured provider per run, and holds the polled transcript.
 builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.AssistantTools>();
+builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.Providers.IAssistantProvider,
+    RpgSceneMaker.Api.Services.Ai.Providers.AnthropicProvider>();
+builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.Providers.IAssistantProvider,
+    RpgSceneMaker.Api.Services.Ai.Providers.OpenAiProvider>();
+builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.Providers.IAssistantProvider,
+    RpgSceneMaker.Api.Services.Ai.Providers.GeminiProvider>();
 builder.Services.AddSingleton<RpgSceneMaker.Api.Services.Ai.AssistantService>();
 
 // MCP server hosted in-process at /mcp (streamable HTTP, stateless — MCP clients resend the API key on every
@@ -127,7 +134,7 @@ app.Use(async (context, next) =>
             HueException => (StatusCodes.Status502BadGateway, "Philips Hue error"),
             SpotifyException => (StatusCodes.Status502BadGateway, "Spotify error"),
             SoundboardException => (StatusCodes.Status503ServiceUnavailable, "Soundboard error"),
-            RpgSceneMaker.Api.Services.Ai.AnthropicException => (StatusCodes.Status502BadGateway, "Anthropic error"),
+            RpgSceneMaker.Api.Services.Ai.AiProviderException => (StatusCodes.Status502BadGateway, "AI provider error"),
             HttpRequestException or TaskCanceledException =>
                 (StatusCodes.Status502BadGateway, "Spotify unreachable — check the internet connection"),
             SocketException or IOException or TimeoutException =>

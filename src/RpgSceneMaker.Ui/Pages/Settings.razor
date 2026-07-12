@@ -285,24 +285,33 @@ else
     <SectionHeading>AI Assistant</SectionHeading>
     <div class="panel">
         <div class="field">
-            <label for="anthropic-key">Anthropic API key</label>
-            <input id="anthropic-key" type="password" @bind="_anthropic.ApiKey" placeholder="sk-ant-…" />
+            <label for="assistant-provider">Provider</label>
+            <select id="assistant-provider" @bind="_assistant.Provider">
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="gemini">Google Gemini</option>
+            </select>
+            <p class="hint">Which AI backend the in-panel assistant talks to — one active at a time.</p>
+        </div>
+        <div class="field">
+            <label for="assistant-key">API key</label>
+            <input id="assistant-key" type="password" @bind="_assistant.ApiKey" placeholder="@ProviderKeyPlaceholder" />
             <p class="hint">Stored on the server. Leave blank to keep the current key.</p>
         </div>
         <div class="field">
-            <label for="anthropic-model">Model</label>
-            <input id="anthropic-model" type="text" @bind="_anthropic.Model" placeholder="claude-opus-4-8" />
-            <p class="hint">Model id from console.anthropic.com. Defaults to <code>claude-opus-4-8</code>.</p>
+            <label for="assistant-model">Model</label>
+            <input id="assistant-model" type="text" @bind="_assistant.Model" placeholder="@ProviderModelPlaceholder" />
+            <p class="hint">@ProviderModelHint</p>
         </div>
         <div class="btn-row">
-            <button class="btn btn--primary" @onclick="SaveAnthropic" disabled="@_busy">Save assistant settings</button>
+            <button class="btn btn--primary" @onclick="SaveAssistant" disabled="@_busy">Save assistant settings</button>
         </div>
 
-        @if (_anthropic.Configured)
+        @if (_assistant.Configured)
         {
             <p class="status ok">✓ Assistant configured</p>
             <div class="btn-row">
-                <button class="btn btn--danger" @onclick="DisconnectAnthropic" disabled="@_busy">Disconnect</button>
+                <button class="btn btn--danger" @onclick="DisconnectAssistant" disabled="@_busy">Disconnect</button>
             </div>
         }
         else
@@ -357,10 +366,32 @@ else
     private bool _showHueAdd;
     private SpotifyConfigDto _spotify = new();
     private List<SpotifyDeviceDto>? _spotifyDevices;
-    private AnthropicConfigDto _anthropic = new();
+    private AssistantConfigDto _assistant = new();
 
     // The MCP server is hosted at /mcp on the panel's own origin.
     private string McpEndpoint => $"{Nav.BaseUri}mcp";
+
+    // Provider-specific hints for the AI Assistant key/model fields.
+    private string ProviderKeyPlaceholder => _assistant.Provider switch
+    {
+        "openai" => "sk-…",
+        "gemini" => "AIza…",
+        _ => "sk-ant-…",
+    };
+
+    private string ProviderModelPlaceholder => _assistant.Provider switch
+    {
+        "openai" => "gpt-4o",
+        "gemini" => "gemini-2.0-flash",
+        _ => "claude-opus-4-8",
+    };
+
+    private string ProviderModelHint => _assistant.Provider switch
+    {
+        "openai" => "Model id from platform.openai.com, e.g. gpt-4o.",
+        "gemini" => "Model id from ai.google.dev, e.g. gemini-2.0-flash.",
+        _ => "Model id from console.anthropic.com, e.g. claude-opus-4-8.",
+    };
 
     private bool IsHue => _config?.Provider.Equals("hue", StringComparison.OrdinalIgnoreCase) == true;
     private bool HueIsPaired => !string.IsNullOrWhiteSpace(_config?.Hue.AppKey);
@@ -382,8 +413,8 @@ else
         if (spotify is not null) _spotify = spotify;
         if (_spotify.Connected) await RefreshSpotifyDevices();
 
-        var (anthropic, _) = await Api.GetAnthropicConfigAsync();
-        if (anthropic is not null) _anthropic = anthropic;
+        var (assistant, _) = await Api.GetAssistantConfigAsync();
+        if (assistant is not null) _assistant = assistant;
 
         // Show the result of a just-completed connect attempt (from the OAuth callback redirect).
         switch (QueryValue("spotify"))
@@ -407,28 +438,28 @@ else
         }
     }
 
-    private async Task SaveAnthropic()
+    private async Task SaveAssistant()
     {
         _busy = true;
         try
         {
-            if (await Api.SaveAnthropicConfigAsync(_anthropic))
+            if (await Api.SaveAssistantConfigAsync(_assistant))
             {
-                _anthropic.ApiKey = ""; // the key is never echoed; blank the field after saving
-                var (anthropic, _) = await Api.GetAnthropicConfigAsync();
-                if (anthropic is not null) _anthropic = anthropic;
+                _assistant.ApiKey = ""; // the key is never echoed; blank the field after saving
+                var (assistant, _) = await Api.GetAssistantConfigAsync();
+                if (assistant is not null) _assistant = assistant;
                 Ui.ReportOk("Assistant settings saved");
             }
         }
         finally { _busy = false; }
     }
 
-    private async Task DisconnectAnthropic()
+    private async Task DisconnectAssistant()
     {
-        if (await Api.DisconnectAnthropicAsync())
+        if (await Api.DisconnectAssistantAsync())
         {
-            var (anthropic, _) = await Api.GetAnthropicConfigAsync();
-            if (anthropic is not null) _anthropic = anthropic;
+            var (assistant, _) = await Api.GetAssistantConfigAsync();
+            if (assistant is not null) _assistant = assistant;
         }
     }
 

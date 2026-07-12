@@ -259,7 +259,7 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
             : path;
     }
 
-    // ---------- assistant (BYOK Anthropic chat) ----------
+    // ---------- assistant (BYOK multi-provider chat) ----------
 
     /// <summary>Poll the assistant transcript/state; silent on failure like the other pollers. Pass the
     /// last seen rev — Entries comes back null (no-op) when nothing changed since then.</summary>
@@ -278,13 +278,13 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
 
     public Task<bool> ClearAssistantAsync() => CommandAsync("assistant/clear");
 
-    public Task<(AnthropicConfigDto? Result, string? Error)> GetAnthropicConfigAsync() =>
-        FetchAsync<AnthropicConfigDto>(HttpMethod.Get, "setup/anthropic/config");
+    public Task<(AssistantConfigDto? Result, string? Error)> GetAssistantConfigAsync() =>
+        FetchAsync<AssistantConfigDto>(HttpMethod.Get, "setup/assistant/config");
 
-    public async Task<bool> SaveAnthropicConfigAsync(AnthropicConfigDto config)
+    public async Task<bool> SaveAssistantConfigAsync(AssistantConfigDto config)
     {
-        var (_, error) = await FetchAsync<JsonNode>(HttpMethod.Put, "setup/anthropic/config",
-            new { apiKey = config.ApiKey, model = config.Model });
+        var (_, error) = await FetchAsync<JsonNode>(HttpMethod.Put, "setup/assistant/config",
+            new { provider = config.Provider, apiKey = config.ApiKey, model = config.Model });
         if (error is not null)
         {
             ui.ReportError(error);
@@ -293,8 +293,8 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         return true;
     }
 
-    public Task<bool> DisconnectAnthropicAsync() =>
-        CommandAsync("setup/anthropic/disconnect", "Assistant disconnected");
+    public Task<bool> DisconnectAssistantAsync() =>
+        CommandAsync("setup/assistant/disconnect", "Assistant disconnected");
 
     // ---------- logs ----------
 

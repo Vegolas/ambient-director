@@ -1,8 +1,6 @@
-using System.Text;
 using System.Text.Json;
-using Anthropic;
-using Anthropic.Models.Messages;
 using RpgSceneMaker.Api.Services;
+using RpgSceneMaker.Api.Services.Ai.Providers;
 
 namespace RpgSceneMaker.Api.Services.Ai;
 
@@ -23,22 +21,25 @@ public sealed class AssistantEntry
 public record AssistantState(long Rev, bool Busy, bool Configured, List<AssistantEntry>? Entries);
 
 /// <summary>
-/// Server-side chat assistant: a singleton that runs an Anthropic agentic tool loop (official C# SDK,
-/// non-streaming <c>Messages.Create</c> per turn) over the same 23 façade operations as the MCP server.
-/// One run at a time; the loop appends to an in-memory transcript and bumps a revision so the panel's ~1 s
-/// poll of <c>/assistant/state</c> sees turns and tool calls appear live. Conversation history is kept across
-/// sends (reset by <see cref="Clear"/>). The Anthropic key is read from <see cref="AnthropicStore"/> per run
-/// and never enters the transcript or the system prompt.
+/// Server-side chat assistant: a singleton that runs a provider-agnostic agentic tool loop over the same 23
+/// façade operations as the MCP server. It owns the transcript, conversation history, cancel/busy state and
+/// revision counter; the actual model turn is delegated to the configured <see cref="IAssistantProvider"/>
+/// (Anthropic / OpenAI / Gemini), selected per run from <see cref="AssistantStore"/>. One run at a time; the
+/// loop appends to an in-memory transcript and bumps a revision so the panel's ~1 s poll of
+/// <c>/assistant/state</c> sees turns and tool calls appear live. Conversation history is kept across sends
+/// (reset by <see cref="Clear"/>). The API key is read from <see cref="AssistantStore"/> per run and never
+/// enters the transcript or the system prompt.
 /// </summary>
-public sealed class AssistantService(AnthropicStore store, AssistantTools toolExec, ILogger<AssistantService> logger)
+public sealed class AssistantService(
+    AssistantStore store,
+    AssistantTools toolExec,
+    IEnumerable<IAssistantProvider> providers,
+    ILogger<AssistantService> logger)
 {
     private const int MaxTokens = 8192;
     private const int TranscriptCap = 500;          // entries kept (drop oldest)
     private const int TranscriptResultCap = 2000;   // tool-result chars stored for the panel
     private const int ToolResultSendCap = 30_000;   // tool-result chars sent back to the model
-
-    private static readonly IReadOnlyList<ToolUnion> ToolDefs =
-        AssistantTools.Definitions.Select(t => (ToolUnion)t).ToList();
 
     private const string SystemPrompt =
         "You are the assistant for RPG Scene Maker, a control panel that sets a tabletop RPG's mood — lights " +
@@ -56,7 +57,7 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
 
     private readonly Lock _lock = new();
     private readonly List<AssistantEntry> _transcript = [];
-    private readonly List<MessageParam> _history = [];
+    private readonly List<ChatMessage> _history = [];
     private long _rev;
     private bool _busy;
     private int _nextSeq;
@@ -69,7 +70,7 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Message text is required.");
         if (!store.Current.IsConfigured)
-            throw new InvalidOperationException("Anthropic API key is not set — add it on the Settings page.");
+            throw new InvalidOperationException("AI provider API key is not set — add it on the Settings page.");
 
         CancellationToken token;
         lock (_lock)
@@ -77,7 +78,7 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
             if (_busy) return false;
             var trimmed = text.Trim();
             AppendLocked(new AssistantEntry { Kind = "user", Text = trimmed });
-            _history.Add(new MessageParam { Role = Role.User, Content = trimmed });
+            _history.Add(new ChatMessage(ChatRole.User, [new TextChatBlock(trimmed)]));
             _busy = true;
             _cts = new CancellationTokenSource();
             token = _cts.Token;
@@ -125,53 +126,40 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
         try
         {
             var config = store.Current;
-            // A fresh client per run picks up the currently stored key/model.
-            var client = new AnthropicClient { ApiKey = config.ApiKey };
+            var provider = providers.FirstOrDefault(p => p.Id == config.Provider)
+                ?? throw new InvalidOperationException(
+                    $"Unknown AI provider '{config.Provider}' — pick a supported provider on the Settings page.");
 
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var request = new MessageCreateParams
-                {
-                    Model = config.Model,
-                    MaxTokens = MaxTokens,
-                    System = SystemPrompt,
-                    Tools = ToolDefs,
-                    Messages = SnapshotHistory(),
-                };
+                var request = new AssistantRequest(
+                    ApiKey: config.ApiKey,
+                    Model: config.Model,
+                    SystemPrompt: SystemPrompt,
+                    MaxTokens: MaxTokens,
+                    History: SnapshotHistory(),
+                    Tools: AssistantTools.Definitions);
 
-                Message message = await client.Messages.Create(request, ct);
+                AssistantTurn turn = await provider.CreateTurnAsync(request, ct);
 
-                var text = new StringBuilder();
-                var assistantBlocks = new List<ContentBlockParam>();
-                var toolUses = new List<(string Id, string Name, IReadOnlyDictionary<string, JsonElement> Input)>();
+                if (!string.IsNullOrEmpty(turn.Text))
+                    AddEntry(new AssistantEntry { Kind = "assistant", Text = turn.Text });
 
-                foreach (var block in message.Content)
-                {
-                    if (block.TryPickText(out var t))
-                    {
-                        if (!string.IsNullOrEmpty(t.Text)) text.Append(t.Text);
-                        assistantBlocks.Add(new TextBlockParam(t.Text ?? ""));
-                    }
-                    else if (block.TryPickToolUse(out var tu))
-                    {
-                        toolUses.Add((tu.ID, tu.Name, tu.Input));
-                        assistantBlocks.Add(new ToolUseBlockParam { ID = tu.ID, Name = tu.Name, Input = tu.Input });
-                    }
-                }
+                // Echo the assistant turn back into history (text first, then any tool-use blocks).
+                var assistantBlocks = new List<ChatBlock>();
+                if (!string.IsNullOrEmpty(turn.Text))
+                    assistantBlocks.Add(new TextChatBlock(turn.Text));
+                foreach (var call in turn.ToolCalls)
+                    assistantBlocks.Add(new ToolUseChatBlock(call.Id, call.Name, call.Input));
+                AddHistory(new ChatMessage(ChatRole.Assistant, assistantBlocks));
 
-                if (text.Length > 0)
-                    AddEntry(new AssistantEntry { Kind = "assistant", Text = text.ToString() });
-
-                // Echo the assistant turn back verbatim (manual block reconstruction — the SDK has no ToParam()).
-                AddHistory(new MessageParam { Role = Role.Assistant, Content = assistantBlocks });
-
-                if (toolUses.Count == 0)
+                if (turn.ToolCalls.Count == 0)
                     break; // no tool calls → the model is done
 
-                var resultBlocks = new List<ContentBlockParam>();
-                foreach (var call in toolUses)
+                var resultBlocks = new List<ChatBlock>();
+                foreach (var call in turn.ToolCalls)
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -191,37 +179,21 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
                         _rev++;
                     }
 
-                    resultBlocks.Add(new ToolResultBlockParam(call.Id)
-                    {
-                        Content = Truncate(resultJson, ToolResultSendCap),
-                        IsError = isError,
-                    });
+                    resultBlocks.Add(new ToolResultChatBlock(call.Id, call.Name, Truncate(resultJson, ToolResultSendCap), isError));
                 }
 
                 // All tool_results for a turn go in ONE user message, then loop for the model's next turn.
-                AddHistory(new MessageParam { Role = Role.User, Content = resultBlocks });
+                AddHistory(new ChatMessage(ChatRole.User, resultBlocks));
             }
         }
         catch (OperationCanceledException)
         {
             AddEntry(new AssistantEntry { Kind = "error", Text = "Stopped." });
         }
-        catch (Anthropic.Exceptions.AnthropicUnauthorizedException ex)
+        catch (AiProviderException ex)
         {
-            AddEntry(new AssistantEntry
-            {
-                Kind = "error",
-                Text = "Anthropic rejected the API key (401) — check the key on the Settings page. " + ex.Message,
-            });
-        }
-        catch (Anthropic.Exceptions.AnthropicApiException ex)
-        {
-            AddEntry(new AssistantEntry { Kind = "error", Text = "Anthropic API error: " + ex.Message });
-        }
-        catch (Anthropic.Exceptions.AnthropicException ex)
-        {
-            AddEntry(new AssistantEntry { Kind = "error", Text = "Anthropic error: " + ex.Message });
-            logger.LogWarning(ex, "Assistant run failed talking to Anthropic.");
+            AddEntry(new AssistantEntry { Kind = "error", Text = ex.Message });
+            logger.LogWarning(ex, "Assistant run failed talking to the {Provider} provider.", ex.Provider);
         }
         catch (Exception ex)
         {
@@ -256,12 +228,12 @@ public sealed class AssistantService(AnthropicStore store, AssistantTools toolEx
         _rev++;
     }
 
-    private void AddHistory(MessageParam message)
+    private void AddHistory(ChatMessage message)
     {
         lock (_lock) { _history.Add(message); }
     }
 
-    private List<MessageParam> SnapshotHistory()
+    private List<ChatMessage> SnapshotHistory()
     {
         lock (_lock) { return [.. _history]; }
     }

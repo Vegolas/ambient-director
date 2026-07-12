@@ -73,55 +73,59 @@ public class SpotifyStoreTests
     }
 }
 
-public class AnthropicStoreTests
+public class AssistantStoreTests
 {
     [Fact]
-    public void Fresh_store_is_unconfigured_with_the_default_model()
+    public void Fresh_store_is_unconfigured_with_the_default_provider_and_model()
     {
         using var db = new SqliteTestDb();
-        var store = new AnthropicStore(db);
+        var store = new AssistantStore(db);
 
         Assert.False(store.Current.IsConfigured);
+        Assert.Equal("anthropic", store.Current.Provider);
         Assert.Equal("claude-opus-4-8", store.Current.Model);
     }
 
     [Fact]
-    public void Save_persists_key_and_model_for_a_fresh_store()
+    public void Save_persists_provider_key_and_model_for_a_fresh_store()
     {
         using var db = new SqliteTestDb();
-        new AnthropicStore(db).Save("sk-ant-secret", "claude-sonnet-4-5");
+        new AssistantStore(db).Save("openai", "sk-secret", "gpt-4o");
 
         // A second store instance loads the same row from SQLite.
-        var reloaded = new AnthropicStore(db);
+        var reloaded = new AssistantStore(db);
         Assert.True(reloaded.Current.IsConfigured);
-        Assert.Equal("sk-ant-secret", reloaded.Current.ApiKey);
-        Assert.Equal("claude-sonnet-4-5", reloaded.Current.Model);
+        Assert.Equal("openai", reloaded.Current.Provider);
+        Assert.Equal("sk-secret", reloaded.Current.ApiKey);
+        Assert.Equal("gpt-4o", reloaded.Current.Model);
     }
 
     [Fact]
-    public void Saving_an_empty_key_keeps_the_stored_key_while_updating_the_model()
+    public void Saving_an_empty_key_keeps_the_stored_key_while_switching_provider_and_model()
     {
         using var db = new SqliteTestDb();
-        var store = new AnthropicStore(db);
-        store.Save("sk-ant-secret", "claude-opus-4-8");
+        var store = new AssistantStore(db);
+        store.Save("anthropic", "sk-ant-secret", "claude-opus-4-8");
 
-        store.Save("", "claude-sonnet-4-5");   // model-only change, no re-paste
+        store.Save("gemini", "", "gemini-2.0-flash");   // switch provider/model, no re-paste
 
+        Assert.Equal("gemini", store.Current.Provider);
         Assert.Equal("sk-ant-secret", store.Current.ApiKey);
-        Assert.Equal("claude-sonnet-4-5", store.Current.Model);
+        Assert.Equal("gemini-2.0-flash", store.Current.Model);
     }
 
     [Fact]
-    public void Clear_empties_the_key_but_keeps_the_model()
+    public void Clear_empties_the_key_but_keeps_provider_and_model()
     {
         using var db = new SqliteTestDb();
-        var store = new AnthropicStore(db);
-        store.Save("sk-ant-secret", "claude-sonnet-4-5");
+        var store = new AssistantStore(db);
+        store.Save("openai", "sk-secret", "gpt-4o");
 
         store.Clear();
 
         Assert.False(store.Current.IsConfigured);
         Assert.Equal("", store.Current.ApiKey);
-        Assert.Equal("claude-sonnet-4-5", store.Current.Model);
+        Assert.Equal("openai", store.Current.Provider);
+        Assert.Equal("gpt-4o", store.Current.Model);
     }
 }

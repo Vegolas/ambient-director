@@ -116,12 +116,12 @@ Use the built-in **System → Website** action (untick "Open in browser" / GET i
 
 ### 4. AI assistant (optional)
 
-Scene Maker can hand its scenes, events and light effects to Claude — either as a chat panel built into the app, or as an **MCP server** you point Claude Code / Claude Desktop at. Both are **bring-your-own-key**: you use your own Anthropic API key, and all model usage is billed to *your* Anthropic account.
+Scene Maker can hand its scenes, events and light effects to an AI — either as a chat panel built into the app, or as an **MCP server** you point Claude Code / Claude Desktop at. Both are **bring-your-own-key**: you use your own provider API key, and all model usage is billed to *your* account. The in-panel chat works with **Anthropic (Claude), OpenAI (GPT) or Google Gemini** — one active at a time; the MCP server targets Claude clients.
 
 **In-panel chat (BYOK)**
 
-1. Get an API key at [console.anthropic.com](https://console.anthropic.com) → **API keys**. (Usage runs on your own account — set a spend limit there if you like.)
-2. Open the panel's **⚙ Settings → AI Assistant**, paste the key, and tap **Save assistant settings**. The key is stored on the server and never shown again; leave the field blank on later saves to keep it while changing the model. The default model is `claude-opus-4-8`.
+1. Get an API key for the provider you want: [console.anthropic.com](https://console.anthropic.com) (Anthropic), [platform.openai.com](https://platform.openai.com) (OpenAI), or [ai.google.dev](https://ai.google.dev) (Gemini). Usage runs on your own account — set a spend limit there if you like.
+2. Open the panel's **⚙ Settings → AI Assistant**, pick the **Provider**, paste that provider's key, set a **Model** (e.g. `claude-opus-4-8`, `gpt-4o`, `gemini-2.0-flash`), and tap **Save assistant settings**. The key is stored on the server and never shown again; leave the field blank on later saves to keep it while changing the provider/model.
 3. Chat from the **🤖 Assistant** tab: e.g. *"create a spooky crypt scene with dim purple lights and ambient music"* or *"add a thunder event with a white flash and my thunderclap sound"*. The assistant can list, create, edit, delete, activate and trigger scenes/events/light effects, and read your lights, sounds and Spotify playlists for context — the same tools the MCP server exposes.
 
 **MCP server (Claude Code / Claude Desktop)**
@@ -213,7 +213,7 @@ Import your own sound effects and fire them from the panel's **Sounds** tab or f
 | Setup (Hue) | `GET /setup/hue/discover`, `GET /setup/hue/register?bridgeIp=…`, `GET /setup/hue/lights` |
 | Setup (Spotify) | `GET/PUT /setup/spotify/config`, `GET /setup/spotify/login`, `GET /setup/spotify/callback`, `GET /setup/spotify/devices`, `GET\|POST /setup/spotify/disconnect` |
 | Setup (config) | `GET /setup/config`, `PUT /setup/config` — read/update provider + Hue/Tuya settings at runtime (persisted to the database) |
-| Setup (assistant) | `GET/PUT /setup/anthropic/config` (BYOK key + model; the key is never echoed back), `GET\|POST /setup/anthropic/disconnect` |
+| Setup (assistant) | `GET/PUT /setup/assistant/config` (BYOK provider + key + model; the key is never echoed back), `GET\|POST /setup/assistant/disconnect` |
 | Assistant (chat) | `POST /assistant/send`, `GET /assistant/state?rev=…`, `GET\|POST /assistant/stop`, `GET\|POST /assistant/clear` |
 | MCP | `/mcp` — Model Context Protocol server (~23 tools over scenes/events/light FX) for Claude Code / Claude Desktop |
 

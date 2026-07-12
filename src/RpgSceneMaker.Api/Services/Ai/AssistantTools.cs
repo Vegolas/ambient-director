@@ -1,19 +1,20 @@
 using System.Net.Sockets;
 using System.Text.Json;
-using Anthropic.Models.Messages;
 using RpgSceneMaker.Api.Models;
 using RpgSceneMaker.Api.Services;
+using RpgSceneMaker.Api.Services.Ai.Providers;
 
 namespace RpgSceneMaker.Api.Services.Ai;
 
 /// <summary>
 /// The in-panel assistant's tool surface: the same 23 façade operations the MCP server exposes, but as
-/// hand-written Anthropic <see cref="Tool"/> definitions plus an executor. <see cref="Definitions"/> is the
-/// static schema list sent to the model on every turn; <see cref="ExecuteAsync"/> dispatches a tool call
-/// back onto <see cref="AiToolService"/>. Integration/validation failures are caught here and returned as
-/// error tool-results (IsError=true) so the model can read the message and self-correct instead of the run
-/// crashing. Tool names, param names and entity JSON shapes match the MCP tools byte-for-byte (camelCase via
-/// <see cref="AiJson"/>), so both surfaces behave identically.
+/// provider-neutral <see cref="AiToolDefinition"/>s plus an executor. <see cref="Definitions"/> is the
+/// static schema list sent to the model on every turn (each provider adapter maps it to its own SDK's tool
+/// type); <see cref="ExecuteAsync"/> dispatches a tool call back onto <see cref="AiToolService"/>.
+/// Integration/validation failures are caught here and returned as error tool-results (IsError=true) so the
+/// model can read the message and self-correct instead of the run crashing. Tool names, param names and
+/// entity JSON shapes match the MCP tools byte-for-byte (camelCase via <see cref="AiJson"/>), so both
+/// surfaces behave identically.
 /// </summary>
 public sealed class AssistantTools(AiToolService tools)
 {
@@ -47,7 +48,7 @@ public sealed class AssistantTools(AiToolService tools)
         "(0-100), atMs (offset) and transitionMs (ramp duration to that keyframe).";
 
     /// <summary>The 23 tool definitions, matching the MCP tool names and the façade operations 1:1.</summary>
-    public static IReadOnlyList<Tool> Definitions { get; } =
+    public static IReadOnlyList<AiToolDefinition> Definitions { get; } =
     [
         // Scenes
         NoArgs("list_scenes",
@@ -86,33 +87,29 @@ public sealed class AssistantTools(AiToolService tools)
             "fx", FxShape),
         WithId("delete_light_fx",
             "Delete the Light FX with this id. Every scene light / timeline clip that referenced it is first detached — rewritten in place to embed a 'custom' copy of the keyframes — so nothing dangles. Returns true if it existed, false otherwise."),
-        new Tool
-        {
-            Name = "test_light_fx",
-            Description = "Preview a Light FX NOW on a real light for a bounded window, then restore the live lights. Errors if the FX id is unknown or the target light is unreachable.",
-            InputSchema = Schema(
+        new AiToolDefinition(
+            "test_light_fx",
+            "Preview a Light FX NOW on a real light for a bounded window, then restore the live lights. Errors if the FX id is unknown or the target light is unreachable.",
+            Schema(
                 new()
                 {
                     ["id"] = Prop("string", "Light FX id to preview: a lowercase slug [a-z0-9-_]."),
                     ["lightKey"] = Prop("string", "Optional light key (from list_lights) to preview on; omit/empty previews on the configured provider group."),
                     ["seconds"] = Prop("integer", "Preview window in seconds, clamped to 1-60. Defaults to 10."),
                 },
-                required: ["id"]),
-        },
+                required: ["id"])),
         NoArgs("stop_light_fx_test", "Stop the running Light FX preview, if any, and restore the live lights. Returns true if a preview was running."),
 
         // Context / control
         NoArgs("list_lights", "List the registered lights (key, name, provider). Use each light's key as a scene light's lightKey or as test_light_fx's lightKey."),
         NoArgs("list_sounds", "List the soundboard sounds (id, name, category, volume, loop, duration). Use each sound's id in a scene's or event's soundEffects."),
         NoArgs("list_spotify_playlists", "List the connected Spotify account's playlists. Each has a spotify: URI usable as a scene's music.playId. Requires Spotify to be connected."),
-        new Tool
-        {
-            Name = "search_spotify_tracks",
-            Description = "Search Spotify for tracks matching a query. Each result has a spotify: URI usable as a scene's music.playId. Requires Spotify to be connected.",
-            InputSchema = Schema(
+        new AiToolDefinition(
+            "search_spotify_tracks",
+            "Search Spotify for tracks matching a query. Each result has a spotify: URI usable as a scene's music.playId. Requires Spotify to be connected.",
+            Schema(
                 new() { ["query"] = Prop("string", "Search terms, e.g. a song title and/or artist.") },
-                required: ["query"]),
-        },
+                required: ["query"])),
         NoArgs("reset_lights", "Reset all lights to the configured default lighting state (the panel's reset-lights button). Errors if no default lighting has been set on the Settings page."),
     ];
 
@@ -202,41 +199,31 @@ public sealed class AssistantTools(AiToolService tools)
 
     // ---- Schema builders ----
 
-    private static Tool NoArgs(string name, string description) =>
-        new() { Name = name, Description = description, InputSchema = Schema(new(), required: []) };
+    private static AiToolDefinition NoArgs(string name, string description) =>
+        new(name, description, Schema(new(), required: []));
 
-    private static Tool WithId(string name, string description) =>
-        new()
-        {
-            Name = name,
-            Description = description,
-            InputSchema = Schema(
-                new() { ["id"] = Prop("string", "A lowercase slug [a-z0-9-_].") },
-                required: ["id"]),
-        };
+    private static AiToolDefinition WithId(string name, string description) =>
+        new(name, description, Schema(
+            new() { ["id"] = Prop("string", "A lowercase slug [a-z0-9-_].") },
+            required: ["id"]));
 
-    private static Tool Tool2(string name, string description, string aName, string aDesc, string bName, string bDesc) =>
-        new()
-        {
-            Name = name,
-            Description = description,
-            InputSchema = Schema(
-                new()
-                {
-                    [aName] = Prop("string", aDesc),
-                    [bName] = Prop("object", bDesc),
-                },
-                required: [aName, bName]),
-        };
+    private static AiToolDefinition Tool2(string name, string description, string aName, string aDesc, string bName, string bDesc) =>
+        new(name, description, Schema(
+            new()
+            {
+                [aName] = Prop("string", aDesc),
+                [bName] = Prop("object", bDesc),
+            },
+            required: [aName, bName]));
 
-    private static InputSchema Schema(Dictionary<string, JsonElement> properties, IReadOnlyList<string> required) =>
-        new()
+    private static JsonElement Schema(Dictionary<string, JsonElement> properties, IReadOnlyList<string> required) =>
+        // A JSON-Schema object every provider adapter understands: { type, properties, required }.
+        JsonSerializer.SerializeToElement(new
         {
-            // Anthropic tool input schemas are always JSON-Schema objects.
-            Type = JsonSerializer.SerializeToElement("object"),
-            Properties = properties,
-            Required = required,
-        };
+            type = "object",
+            properties,
+            required,
+        });
 
     private static JsonElement Prop(string type, string description) =>
         JsonSerializer.SerializeToElement(new { type, description });

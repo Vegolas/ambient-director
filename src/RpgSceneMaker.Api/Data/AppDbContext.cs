@@ -12,7 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LightFx> LightFxs => Set<LightFx>();
     public DbSet<LightingConfig> LightingConfigs => Set<LightingConfig>();
     public DbSet<SpotifyConfig> SpotifyConfigs => Set<SpotifyConfig>();
-    public DbSet<AnthropicConfig> AnthropicConfigs => Set<AnthropicConfig>();
+    public DbSet<AssistantConfig> AssistantConfigs => Set<AssistantConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,7 +95,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             config.Ignore(c => c.IsConnected);
         });
 
-        modelBuilder.Entity<AnthropicConfig>(config =>
+        modelBuilder.Entity<AssistantConfig>(config =>
         {
             config.HasKey(c => c.Id);
             config.Property(c => c.Id).ValueGeneratedNever();

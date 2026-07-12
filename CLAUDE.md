@@ -146,15 +146,22 @@ Running the API is enough to see the panel — it builds and serves the WASM ass
   ([McpTools.cs](src/RpgSceneMaker.Api/Services/Ai/McpTools.cs)) are thin `[McpServerTool]` adapters over
   `AiToolService` (upserts take the typed entity so schemas auto-generate from the models). Point Claude Code
   / Claude Desktop here; it is behind the optional API-key gate like the rest of the API.
-- **`AssistantService` / `AnthropicStore`** — the in-panel **BYOK assistant**. `AnthropicStore`
-  ([AnthropicStore.cs](src/RpgSceneMaker.Api/Services/AnthropicStore.cs)) persists the user's Anthropic API
-  key + model in SQLite via `/setup/anthropic/*` (`AnthropicConfig` single row; the key is **never echoed** —
-  endpoints return only `{configured, model}`). `AssistantService`
+- **`AssistantService` / `AssistantStore` / `IAssistantProvider`** — the in-panel **BYOK assistant**, which
+  runs against **any of three backends** (Anthropic / OpenAI / Gemini), one active at a time. `AssistantStore`
+  ([AssistantStore.cs](src/RpgSceneMaker.Api/Services/AssistantStore.cs)) persists the active `provider` +
+  API key + model in SQLite via `/setup/assistant/*` (`AssistantConfig` single row; the key is **never
+  echoed** — endpoints return only `{provider, configured, model}`). `AssistantService`
   ([AssistantService.cs](src/RpgSceneMaker.Api/Services/Ai/AssistantService.cs), a singleton) runs a single
-  in-memory chat session as a non-streaming agentic tool loop (official `Anthropic` SDK, tools from
-  `AssistantTools` → the same façade); the panel drives it over `/assistant/*` (`send`/`state`/`stop`/`clear`)
-  by **polling `/assistant/state?rev=`** (the codebase's real-time idiom — no SSE). `AnthropicException`
-  maps to a `502` arm in the Program.cs error switch.
+  in-memory chat session as a **provider-agnostic** non-streaming agentic tool loop: it owns the transcript,
+  history and cancel/busy state, keeps history in a neutral block model
+  ([Providers/AssistantChat.cs](src/RpgSceneMaker.Api/Services/Ai/Providers/AssistantChat.cs)), and delegates
+  each model turn to the configured [`IAssistantProvider`](src/RpgSceneMaker.Api/Services/Ai/Providers/IAssistantProvider.cs)
+  (one adapter each — `AnthropicProvider` / `OpenAiProvider` / `GeminiProvider` — selected per run by
+  `AssistantConfig.Provider`, using the official `Anthropic`, `OpenAI` and `Mscc.GenerativeAI` SDKs). Tools
+  come from `AssistantTools` as provider-neutral `AiToolDefinition`s (each adapter maps them to its SDK's tool
+  type) → the same façade. The panel drives it over `/assistant/*` (`send`/`state`/`stop`/`clear`) by
+  **polling `/assistant/state?rev=`** (the codebase's real-time idiom — no SSE). A backend failure surfaces as
+  `AiProviderException`, mapped to a `502` arm in the Program.cs error switch.
 
 ### Conventions
 
