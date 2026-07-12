@@ -110,6 +110,25 @@ public static class SetupEndpoints
             store.Disconnect();
             return new { spotify = "disconnected" };
         });
+
+        // Anthropic (BYOK) assistant config. The API key is write-only: it is stored server-side and used to
+        // talk to the Anthropic API, but never returned — only the "configured" flag and the model come back.
+        setup.MapGet("/anthropic/config", (AnthropicStore store) =>
+            new { configured = store.Current.IsConfigured, model = store.Current.Model });
+
+        setup.MapPut("/anthropic/config", (AnthropicConfigInput input, AnthropicStore store) =>
+        {
+            store.Save(input.ApiKey, input.Model);
+            var c = store.Current;
+            return Results.Ok(new { configured = c.IsConfigured, model = c.Model });
+        });
+
+        setup.MapMethods("/anthropic/disconnect", EndpointHelpers.GetOrPost, (AnthropicStore store) =>
+        {
+            store.Clear();
+            var c = store.Current;
+            return new { configured = c.IsConfigured, model = c.Model };
+        });
     }
 
     // Spotify's dashboard only accepts plain-http redirect URIs on 127.0.0.1 (not "localhost"), and the

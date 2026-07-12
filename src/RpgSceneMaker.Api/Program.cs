@@ -65,6 +65,9 @@ builder.Services.AddSingleton<SpotifyTokenCache>();
 builder.Services.AddSingleton<SpotifyAuthState>();
 builder.Services.AddHttpClient<SpotifyClient>(client => client.Timeout = TimeSpan.FromSeconds(10));
 
+// Anthropic: bring-your-own-key settings for the in-panel AI assistant (key + model, stored in SQLite).
+builder.Services.AddSingleton<AnthropicStore>();
+
 // In-memory log buffer surfaced by the panel's Logs tab. Whitelist our own logs at Information and
 // default everything else (EF SQL, HttpClient request chatter, hosting) to Warning+, so the tab stays
 // signal rather than framework noise.
