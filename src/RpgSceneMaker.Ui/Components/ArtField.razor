@@ -4,26 +4,27 @@
 @inject IJSRuntime JS
 @inject ApiClient Api
 @inject UiState Ui
+@inject Localizer L
 
 <div class="art-field">
-    <label class="art-label">Tile art</label>
+    <label class="art-label">@L["artField.label"]</label>
     <div class="art-preview">
         @if (Api.ImageUrl(Image) is { } url)
         {
-            <img class="art-thumb" src="@url" alt="Tile art preview" />
+            <img class="art-thumb" src="@url" alt='@L["artField.altPreview"]' />
         }
         else
         {
-            <span class="art-empty">No art</span>
+            <span class="art-empty">@L["artField.noArt"]</span>
         }
     </div>
     <div class="btn-row" style="margin-top:0.6rem">
         <button class="btn btn--small" @onclick="Upload" disabled="@_busy">
-            @(_busy ? "Uploading…" : HasImage ? "Replace art" : "Upload art")
+            @(_busy ? L["artField.uploading"] : HasImage ? L["artField.replace"] : L["artField.upload"])
         </button>
         @if (HasImage)
         {
-            <button class="btn btn--small btn--danger" @onclick="Remove" disabled="@_busy">Remove</button>
+            <button class="btn btn--small btn--danger" @onclick="Remove" disabled="@_busy">@L["common.remove"]</button>
         }
     </div>
 </div>
@@ -50,7 +51,7 @@
             if (string.IsNullOrEmpty(dataUrl)) return; // cancelled
 
             var comma = dataUrl.IndexOf(',');
-            if (comma < 0) { Ui.ReportError("Couldn't read the cropped image."); return; }
+            if (comma < 0) { Ui.ReportError(L["artField.toast.cropReadFailed"]); return; }
 
             var isWebp = dataUrl[..comma].Contains("image/webp", StringComparison.OrdinalIgnoreCase);
             var contentType = isWebp ? "image/webp" : "image/jpeg";
@@ -65,12 +66,12 @@
             }
             else
             {
-                Ui.ReportError(error ?? "Image upload failed.");
+                Ui.ReportError(error ?? L["artField.toast.uploadFailed"]);
             }
         }
         catch (Exception ex)
         {
-            Ui.ReportError($"Image upload failed: {ex.Message}");
+            Ui.ReportError(L.Format("artField.toast.uploadFailedDetail", ex.Message));
         }
         finally
         {

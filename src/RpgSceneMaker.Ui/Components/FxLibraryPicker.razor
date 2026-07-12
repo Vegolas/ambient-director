@@ -4,8 +4,10 @@
    shows its name, an "Edit in library" link, and a "Detach to edit locally" button that copies the
    keyframes into an embedded "custom" effect. A dangling reference shows a warning hint. *@
 
+@inject Localizer L
+
 <div class="chip-row" style="margin-top:0.6rem">
-    <Chip On="@(Effect.Type == "fx")" OnClick="TogglePicker"><Icon Name="library" /> From library</Chip>
+    <Chip On="@(Effect.Type == "fx")" OnClick="TogglePicker"><Icon Name="library" /> @L["fxPicker.fromLibrary"]</Chip>
 </div>
 
 @if (_pickerOpen)
@@ -13,7 +15,7 @@
     <div class="panel" style="margin-top:0.6rem">
         @if (Library.Count == 0)
         {
-            <p class="hint" style="margin:0">No saved effects yet. Create some on the <a href="effects">Effects</a> tab first.</p>
+            <p class="hint" style="margin:0">@L["fxPicker.emptyPre"]<a href="effects">@L["fxPicker.effectsTab"]</a>@L["fxPicker.emptyPost"]</p>
         }
         else
         {
@@ -37,14 +39,14 @@
         {
             <p style="margin:0"><strong><Icon Name="effects" /> @lib.Name</strong> <small class="hint">@Meta(lib)</small></p>
             <div class="btn-row" style="margin-top:0.6rem">
-                <a class="btn btn--small" href="effects/@lib.Id">Edit in library</a>
-                <button class="btn btn--small" @onclick="() => Detach(lib)">Detach to edit locally</button>
+                <a class="btn btn--small" href="effects/@lib.Id">@L["fxPicker.editInLibrary"]</a>
+                <button class="btn btn--small" @onclick="() => Detach(lib)">@L["fxPicker.detach"]</button>
             </div>
-            <p class="hint" style="margin-top:0.4rem">Live reference — editing it in the library updates every scene and event that uses it.</p>
+            <p class="hint" style="margin-top:0.4rem">@L["fxPicker.liveReference"]</p>
         }
         else
         {
-            <p class="hint" style="margin:0"><Icon Name="warn" /> References a missing effect (<code>@Effect.FxId</code>). Pick another above, or choose a different effect type.</p>
+            <p class="hint" style="margin:0"><Icon Name="warn" /> @L["fxPicker.missingPre"]<code>@Effect.FxId</code>@L["fxPicker.missingPost"]</p>
         }
     </div>
 }
@@ -75,10 +77,10 @@
         _pickerOpen = false;
     }
 
-    private static string Meta(LightFxDto fx)
+    private string Meta(LightFxDto fx)
     {
         var count = fx.Keyframes?.Count ?? 0;
-        var kf = $"{count} keyframe{(count == 1 ? "" : "s")}";
-        return fx.Loop ? $"{kf} · loop" : kf;
+        var kf = L.Plural("keyframe.count", count);
+        return fx.Loop ? kf + L["fxPicker.loopSuffix"] : kf;
     }
 }

@@ -4,14 +4,17 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject ViewTransition Vt
+@inject Localizer L
 
-<div class="shell">
+@* Keyed on the language so a runtime switch rebuilds the whole subtree — components that read strings
+   internally (QuickControls, NowRunningStrip, SwatchGrid, …) don't otherwise re-render on L.Changed. *@
+<div class="shell" @key="L.CurrentCode">
     <nav class="rail">
         @foreach (var tab in VisibleTabs)
         {
             <a @key="tab.Href" href="@tab.Href" class="rail__item @ActiveClass(tab)"
                @onclick:preventDefault @onclick="() => Vt.NavigateAsync(tab.Href)">
-                <span class="icon"><Icon Name="@tab.Icon" /></span>@tab.Label
+                <span class="icon"><Icon Name="@tab.Icon" /></span>@L[tab.LabelKey]
             </a>
         }
     </nav>
@@ -27,7 +30,7 @@
                            aria-label="@placeholder" @oninput="e => Ui.SetSearchQuery(e.Value?.ToString())" />
                     @if (Ui.SearchQuery.Length > 0)
                     {
-                        <button class="searchbar-clear" @onclick='() => Ui.SetSearchQuery("")' aria-label="Clear search"><Icon Name="close" /></button>
+                        <button class="searchbar-clear" @onclick='() => Ui.SetSearchQuery("")' aria-label='@L["topbar.clearSearch"]'><Icon Name="close" /></button>
                     }
                 </div>
             }
@@ -37,14 +40,14 @@
             }
             @if (Ui.Connected)
             {
-                <span class="badge badge--online" title="API connected"><span class="dot"></span>ONLINE</span>
+                <span class="badge badge--online" title='@L["topbar.onlineTitle"]'><span class="dot"></span>@L["topbar.online"]</span>
             }
             else
             {
-                <span class="badge badge--offline" title="API unreachable"><span class="dot"></span>OFFLINE</span>
+                <span class="badge badge--offline" title='@L["topbar.offlineTitle"]'><span class="dot"></span>@L["topbar.offline"]</span>
             }
             <QuickControls />
-            <button class="btn btn--icon" @onclick='() => Vt.NavigateAsync("settings")' aria-label="Settings"><Icon Name="settings" /></button>
+            <button class="btn btn--icon" @onclick='() => Vt.NavigateAsync("settings")' aria-label='@L["nav.settings"]'><Icon Name="settings" /></button>
         </header>
 
         <main class="page">
@@ -58,7 +61,7 @@
         {
             <a @key="tab.Href" href="@tab.Href" class="@ActiveClass(tab)"
                @onclick:preventDefault @onclick="() => Vt.NavigateAsync(tab.Href)">
-                <span class="tab-ico"><Icon Name="@tab.Icon" /></span>@tab.Label
+                <span class="tab-ico"><Icon Name="@tab.Icon" /></span>@L[tab.LabelKey]
             </a>
         }
     </nav>
@@ -70,34 +73,35 @@
 </div>
 
 @code {
-    private record Tab(string Href, string Icon, string Label, bool Exact = false);
+    // LabelKey is an i18n key ("nav.scenes"); the rail/tabbar render it through the localizer.
+    private record Tab(string Href, string Icon, string LabelKey, bool Exact = false);
 
     private static readonly Tab[] Tabs =
     [
-        new("", "scenes", "Scenes", Exact: true),
-        new("screens", "screens", "Screens"),
-        new("music", "music", "Music"),
-        new("lights", "lights", "Lights"),
-        new("sounds", "sounds", "Sounds"),
-        new("events", "events", "Events"),
-        new("effects", "effects", "Effects"),
+        new("", "scenes", "nav.scenes", Exact: true),
+        new("screens", "screens", "nav.screens"),
+        new("music", "music", "nav.music"),
+        new("lights", "lights", "nav.lights"),
+        new("sounds", "sounds", "nav.sounds"),
+        new("events", "events", "nav.events"),
+        new("effects", "effects", "nav.effects"),
     ];
 
     // The Assistant tab only appears once an AI provider key is configured (Settings → Assistant).
     private static readonly Tab AssistantTab = new("assistant", "assistant", "Assistant");
 
     // The Logs tab (with its diagnostics panel) only appears when developer mode is on.
-    private static readonly Tab LogsTab = new("logs", "logs", "Logs");
+    private static readonly Tab LogsTab = new("logs", "logs", "nav.logs");
 
-    // Routes that show the header search bar, with their placeholder. Exact path match, so deep pages
-    // (a board, an editor) don't inherit it. Each page filters its own contents by Ui.SearchQuery.
+    // Routes that show the header search bar, mapped to the i18n key of their placeholder. Exact path match,
+    // so deep pages (a board, an editor) don't inherit it. Each page filters its contents by Ui.SearchQuery.
     private static readonly Dictionary<string, string> SearchablePages = new(StringComparer.OrdinalIgnoreCase)
     {
-        [""] = "Search scenes…",
-        ["screens"] = "Search screens…",
-        ["music"] = "Search playlists…",
-        ["sounds"] = "Search sounds…",
-        ["events"] = "Search events…",
+        [""] = "search.scenes",
+        ["screens"] = "search.screens",
+        ["music"] = "search.playlists",
+        ["sounds"] = "search.sounds",
+        ["events"] = "search.events",
     };
 
     // The built-in tabs, plus the Assistant tab when a provider key is configured and the Logs tab in dev mode.
@@ -132,11 +136,13 @@
     }
 
     private string? SearchPlaceholder =>
-        SearchablePages.TryGetValue(CurrentPath(), out var p) ? p : null;
+        SearchablePages.TryGetValue(CurrentPath(), out var key) ? L[key] : null;
 
     protected override async Task OnInitializedAsync()
     {
         Ui.Changed += OnUiChanged;
+        // A language switch re-renders the whole app from here (cascades through @Body to every page).
+        L.Changed += OnUiChanged;
         // The active tab is derived from the URL, so re-render whenever it changes.
         Nav.LocationChanged += OnLocationChanged;
         // Load the per-device flags so the nav renders correctly from the first paint.
@@ -177,6 +183,7 @@
     public void Dispose()
     {
         Ui.Changed -= OnUiChanged;
+        L.Changed -= OnUiChanged;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }

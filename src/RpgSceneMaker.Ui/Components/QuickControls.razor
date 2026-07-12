@@ -3,18 +3,19 @@
    for the whole session and one poll timer covers every tab. *@
 @implements IDisposable
 @inject ApiClient Api
+@inject Localizer L
 
 <div class="quick">
     @if (_musicConnected)
     {
         <button class="q-btn primary" @onclick="PlayPause"
-                title="@(Playing ? "Pause music" : "Play music")"
-                aria-label="@(Playing ? "Pause music" : "Play music")"><Icon Name="@(Playing ? "pause" : "play")" /></button>
+                title='@(Playing ? L["quickControls.pause"] : L["quickControls.play"])'
+                aria-label='@(Playing ? L["quickControls.pause"] : L["quickControls.play"])'><Icon Name="@(Playing ? "pause" : "play")" /></button>
         <input class="q-vol" type="range" min="0" max="100" value="@_volume"
-               @onchange="OnVolumeChanged" title="Music volume" aria-label="Music volume" />
+               @onchange="OnVolumeChanged" title='@L["quickControls.volume"]' aria-label='@L["quickControls.volume"]' />
     }
     <button class="q-btn" @onclick="ResetLights"
-            title="Reset lights to default" aria-label="Reset lights to default"><Icon Name="lights" /></button>
+            title='@L["quickControls.resetLights"]' aria-label='@L["quickControls.resetLights"]'><Icon Name="lights" /></button>
 </div>
 
 @code {
@@ -60,7 +61,7 @@
         await Api.CommandAsync($"music/volume?value={value}");
     }
 
-    private Task ResetLights() => Api.ResetLightsToDefaultAsync();
+    private Task ResetLights() => Api.ResetLightsToDefaultAsync(L["toast.lightsReset"]);
 
     public void Dispose() => _timer?.Dispose();
 }

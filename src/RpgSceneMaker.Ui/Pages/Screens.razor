@@ -3,14 +3,15 @@
 @inject ApiClient Api
 @inject UiState Ui
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — Screens</PageTitle>
+<PageTitle>Scene Maker — @L["screens.title"]</PageTitle>
 
 <div class="page-head">
-    <h1>Screens</h1>
+    <h1>@L["screens.title"]</h1>
     @if (_screens is not null)
     {
-        <span class="count">@_screens.Count saved</span>
+        <span class="count">@L.Plural("screens.savedCount", _screens.Count)</span>
     }
 </div>
 
@@ -24,29 +25,29 @@
             }
         </div>
         <div class="field" style="margin-top:1rem;margin-bottom:0">
-            <label for="screen-label">Name</label>
+            <label for="screen-label">@L["screens.nameLabel"]</label>
             <input id="screen-label" type="text" value="@_label" @oninput="e => _label = e.Value?.ToString() ?? string.Empty"
-                   placeholder="e.g. Fantasy" />
+                   placeholder='@L["screens.namePlaceholder"]' />
         </div>
-        <p class="hint" style="margin-top:0.6rem">A screen just groups shortcuts — you'll pick which scenes, events, sounds and playlists go on it next.</p>
+        <p class="hint" style="margin-top:0.6rem">@L["screens.createHint"]</p>
         <ArtField @bind-Image="_image" />
         <div class="btn-row" style="margin-top:0.6rem">
-            <button class="btn btn--primary" @onclick="Create" disabled="@_busy">Create</button>
-            <button class="btn" @onclick="() => _creating = false" disabled="@_busy">Cancel</button>
+            <button class="btn btn--primary" @onclick="Create" disabled="@_busy">@L["screens.createBtn"]</button>
+            <button class="btn" @onclick="() => _creating = false" disabled="@_busy">@L["common.cancel"]</button>
         </div>
     </div>
 }
 
 @if (_screens is null)
 {
-    <p class="empty-note">Arranging the boards…</p>
+    <p class="empty-note">@L["screens.loading"]</p>
 }
 else
 {
     var shown = _screens.Where(ScreenMatches).ToList();
     @if (_screens.Count == 0 && !_creating)
     {
-        <p class="empty-note">No screens yet — group your favourite scenes, events and playlists into one board below.</p>
+        <p class="empty-note">@L["screens.emptyNote"]</p>
     }
     <div class="scene-grid">
         @foreach (var (screen, index) in shown.Select((s, i) => (s, i)))
@@ -70,17 +71,17 @@ else
         {
             <button class="scene-card ghost" @onclick="NewScreen">
                 <span class="scene-emoji"><Icon Name="add" /></span>
-                <span class="scene-name">New screen</span>
+                <span class="scene-name">@L["screens.newScreen"]</span>
             </button>
         }
     </div>
     @if (Searching && shown.Count == 0)
     {
-        <p class="empty-note">No screens match “@Ui.SearchQuery”.</p>
+        <p class="empty-note">@L.Format("screens.noMatch", Ui.SearchQuery)</p>
     }
     else if (_screens.Count > 0)
     {
-        <p class="hint" style="margin-top:1rem">Tap a screen to open its board; arrange its shortcuts from inside.</p>
+        <p class="hint" style="margin-top:1rem">@L["screens.tapHint"]</p>
     }
 }
 
@@ -115,11 +116,11 @@ else
 
     public void Dispose() => Ui.SearchChanged -= OnSearchChanged;
 
-    private static string TileCount(ScreenDto s)
+    private string TileCount(ScreenDto s)
     {
         // "break" tiles are layout markers, not shortcuts — don't count them.
         var n = s.Tiles?.Count(t => t.Kind != "break") ?? 0;
-        return n == 1 ? "1 shortcut" : $"{n} shortcuts";
+        return L.Plural("screens.tileCount", n);
     }
 
     private Task Open(string id) => Vt.NavigateAsync($"screens/{id}");
@@ -141,13 +142,13 @@ else
     {
         if (string.IsNullOrWhiteSpace(_label))
         {
-            Ui.ReportError("Give the screen a name first.");
+            Ui.ReportError(L["screens.toast.nameFirst"]);
             return;
         }
         var id = SceneNaming.MakeUnique(SceneNaming.Slugify(_label), _screens?.Select(s => s.Id).ToList() ?? []);
         if (string.IsNullOrEmpty(id))
         {
-            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            Ui.ReportError(L["screens.toast.badId"]);
             return;
         }
 

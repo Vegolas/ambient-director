@@ -1,5 +1,6 @@
 ﻿@page "/not-found"
 @layout MainLayout
+@inject Localizer L
 
-<div class="page-head"><h1>Not found</h1></div>
-<p class="empty-note">Sorry, the content you are looking for does not exist — head back to <a href="">Scenes</a>.</p>
+<div class="page-head"><h1>@L["notFound.title"]</h1></div>
+<p class="empty-note">@L["notFound.pre"]<a href="">@L["notFound.link"]</a>@L["notFound.post"]</p>

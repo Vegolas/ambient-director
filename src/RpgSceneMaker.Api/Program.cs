@@ -24,6 +24,12 @@ var imagesPath = builder.Configuration["Images:Path"] ?? Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
     "RpgSceneMaker", "images");
 
+// UI translation files live next to the database; Locales:Path overrides the location. Community/agent
+// authors drop or edit a <code>.json here; English is also embedded as the fallback (see LocaleService).
+var localesPath = builder.Configuration["Locales:Path"] ?? Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "RpgSceneMaker", "locales");
+
 // Startup-captured facts surfaced by GET /diagnostics (developer mode): process start time plus the
 // resolved on-disk paths, so the endpoint reuses the exact values instead of re-resolving them.
 builder.Services.AddSingleton(new DiagnosticsInfo(DateTimeOffset.UtcNow, dbPath, soundsPath));
@@ -45,6 +51,9 @@ builder.Services.AddSingleton(new ImageFileStorage(imagesPath));
 builder.Services.AddSingleton<EventStore>();
 builder.Services.AddSingleton<ScreenStore>();
 builder.Services.AddSingleton<LightFxStore>();
+
+// UI translations: JSON files on disk (community-editable), with English embedded as the fallback.
+builder.Services.AddSingleton(sp => new LocaleService(localesPath, sp.GetRequiredService<ILogger<LocaleService>>()));
 
 builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<CurrentState>();
@@ -120,6 +129,10 @@ var app = builder.Build();
     LegacyImporter.Run(db, app.Configuration, app.Environment, app.Logger);
 }
 
+// Seed the on-disk locales directory with the shipped translations (only the files that are missing,
+// so a community edit is never clobbered). English also stays embedded as the ultimate fallback.
+app.Services.GetRequiredService<LocaleService>().Seed();
+
 // Map integration failures to useful status codes so a failing Stream Deck button tells you why.
 app.Use(async (context, next) =>
 {
@@ -183,7 +196,7 @@ app.Use(async (context, next) =>
          path.StartsWithSegments("/lightfx") || path.StartsWithSegments("/images") ||
          path.StartsWithSegments("/setup") || path.StartsWithSegments("/logs") ||
          path.StartsWithSegments("/diagnostics") || path.StartsWithSegments("/mcp") ||
-         path.StartsWithSegments("/assistant"));
+         path.StartsWithSegments("/assistant") || path.StartsWithSegments("/i18n"));
 });
 
 // The Blazor WASM control panel is served from this same process.
@@ -205,6 +218,7 @@ app.MapSetupEndpoints();
 app.MapLogEndpoints();
 app.MapDiagnosticsEndpoints();
 app.MapAssistantEndpoints();
+app.MapLocaleEndpoints();
 
 // The in-process MCP server (streamable HTTP) — point Claude Code / Claude Desktop at this.
 app.MapMcp("/mcp");

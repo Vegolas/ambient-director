@@ -3,14 +3,15 @@
    Fully pointer-driven (mouse + iPad touch) via wwwroot/js/timeline.js. *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject Localizer L
 
 <div class="tl-toolbar">
     <div class="tl-zoom">
-        <button class="btn btn--small" @onclick="ZoomOut" disabled="@(_pps <= MinPps)" title="Zoom out" aria-label="Zoom out"><Icon Name="zoom-out" /></button>
-        <button class="btn btn--small" @onclick="ZoomIn" disabled="@(_pps >= MaxPps)" title="Zoom in" aria-label="Zoom in"><Icon Name="zoom-in" /></button>
-        <button class="btn btn--small" @onclick="FitAsync" title="Fit timeline to view">Fit</button>
+        <button class="btn btn--small" @onclick="ZoomOut" disabled="@(_pps <= MinPps)" title='@L["timeline.zoomOut"]' aria-label='@L["timeline.zoomOut"]'><Icon Name="zoom-out" /></button>
+        <button class="btn btn--small" @onclick="ZoomIn" disabled="@(_pps >= MaxPps)" title='@L["timeline.zoomIn"]' aria-label='@L["timeline.zoomIn"]'><Icon Name="zoom-in" /></button>
+        <button class="btn btn--small" @onclick="FitAsync" title='@L["timeline.fitTitle"]'>@L["timeline.fit"]</button>
     </div>
-    <span class="tl-total">@FormatSeconds(Model.EndMs) total @if (OverLimit) {<text> </text><Icon Name="warn" /><text> over 10 min</text>}</span>
+    <span class="tl-total">@L.Format("timeline.total", FormatSeconds(Model.EndMs)) @if (OverLimit) {<text> </text><Icon Name="warn" /><text> @L["timeline.overLimit"]</text>}</span>
 </div>
 
 <div class="tl-root" data-pps="@_pps" @ref="_rootEl">
@@ -21,16 +22,16 @@
                 @foreach (var t in Ticks())
                 {
                     <div class="tl-tick" style="left:@(Px(t * 1000))px">
-                        <span class="tl-tick-label">@t s</span>
+                        <span class="tl-tick-label">@t @L["common.secondsShort"]</span>
                     </div>
                 }
             </div>
 
             @* --- sounds --- *@
-            <div class="tl-group-label"><Icon Name="sounds" /> Sounds</div>
+            <div class="tl-group-label"><Icon Name="sounds" /> @L["timeline.laneSounds"]</div>
             @if (Model.Sounds.Count == 0)
             {
-                <div class="tl-lane empty"><span class="tl-lane-empty">No sound clips — add one below.</span></div>
+                <div class="tl-lane empty"><span class="tl-lane-empty">@L["timeline.noSoundClips"]</span></div>
             }
             else
             {
@@ -51,17 +52,17 @@
                             }
                             <span class="tl-clip-label">@SoundName(s.SoundId)</span>
                             <span class="tl-clip-time">@SoundClipTimeLabel(s, w)</span>
-                            <span class="tl-resize" aria-label="Resize clip"></span>
+                            <span class="tl-resize" aria-label='@L["timeline.resizeClip"]'></span>
                         </div>
                     </div>
                 }
             }
 
             @* --- lights --- *@
-            <div class="tl-group-label"><Icon Name="lights" /> Lights</div>
+            <div class="tl-group-label"><Icon Name="lights" /> @L["timeline.laneLights"]</div>
             @if (Model.Lights.Count == 0)
             {
-                <div class="tl-lane empty"><span class="tl-lane-empty">No light clips — add one below.</span></div>
+                <div class="tl-lane empty"><span class="tl-lane-empty">@L["timeline.noLightClips"]</span></div>
             }
             else
             {
@@ -75,7 +76,7 @@
                             <span class="tl-clip-swatch"></span>
                             <span class="tl-clip-label">@LightName(l.LightKey)</span>
                             <span class="tl-clip-time">@ClipTimeLabel(l.StartMs, l.DurationMs, false)</span>
-                            <span class="tl-resize" aria-label="Resize clip"></span>
+                            <span class="tl-resize" aria-label='@L["timeline.resizeClip"]'></span>
                             @foreach (var x in CustomTicks(l))
                             {
                                 <span class="tl-kf-tick" style="left:@(x)px"></span>
@@ -89,8 +90,8 @@
 </div>
 
 <div class="btn-row" style="margin-top:0.8rem">
-    <button class="btn btn--small" @onclick="ToggleSoundPicker"><Icon Name="add" /> Add sound</button>
-    <button class="btn btn--small" @onclick="AddLight"><Icon Name="add" /> Add light</button>
+    <button class="btn btn--small" @onclick="ToggleSoundPicker"><Icon Name="add" /> @L["timeline.addSound"]</button>
+    <button class="btn btn--small" @onclick="AddLight"><Icon Name="add" /> @L["timeline.addLight"]</button>
 </div>
 
 @if (_soundPickerOpen)
@@ -98,18 +99,18 @@
     <div class="panel" style="margin-top:0.8rem">
         @if (Sounds.Count == 0)
         {
-            <p class="hint" style="margin:0">No sounds imported yet. Add some on the <a href="sounds">Sounds</a> tab first.</p>
+            <p class="hint" style="margin:0">@L["timeline.noSoundsPre"]<a href="sounds">@L["timeline.soundsTab"]</a>@L["timeline.noSoundsPost"]</p>
         }
         else
         {
-            @foreach (var group in Sounds.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "Uncategorized" : s.Category))
+            @foreach (var group in Sounds.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? L["timeline.uncategorized"] : s.Category))
             {
                 <p class="section-h">@group.Key</p>
                 <div class="klist">
                     @foreach (var sound in group)
                     {
                         <KRow IconName="@(sound.Loop ? "repeat" : "sounds")" Title="@sound.Name"
-                              Hint="@(sound.NaturalMs is { } d ? FormatSeconds(d) : "unknown length")"
+                              Hint='@(sound.NaturalMs is { } d ? FormatSeconds(d) : L["timeline.unknownLength"])'
                               OnClick="() => AddSound(sound)" />
                     }
                 </div>
@@ -124,7 +125,7 @@
     <div class="panel tl-inspector">
         <div class="tl-insp-head">
             <span class="tl-insp-title"><Icon Name="sounds" /> @SoundName(sc.SoundId)</span>
-            <button class="btn btn--small btn--danger" @onclick="() => DeleteSound(sc)">Delete clip</button>
+            <button class="btn btn--small btn--danger" @onclick="() => DeleteSound(sc)">@L["timeline.deleteClip"]</button>
         </div>
 
         @{
@@ -134,52 +135,52 @@
 
         <div class="tl-insp-inline">
             <div class="tl-fld">
-                <label>Start</label>
-                <input type="number" min="0" step="0.1" value="@Sec(sc.StartMs)" @onchange="e => SetStart(sc, e)" aria-label="Clip start" />
-                <span class="tl-unit">s</span>
+                <label>@L["timeline.start"]</label>
+                <input type="number" min="0" step="0.1" value="@Sec(sc.StartMs)" @onchange="e => SetStart(sc, e)" aria-label='@L["timeline.clipStartAria"]' />
+                <span class="tl-unit">@L["common.secondsShort"]</span>
             </div>
             <div class="tl-fld">
-                <label>Duration</label>
+                <label>@L["timeline.duration"]</label>
                 @if (sc.DurationMs is { } d)
                 {
-                    <input type="number" min="0.1" step="0.1" value="@Sec(d)" @onchange="e => SetSoundDuration(sc, e)" aria-label="Clip duration" />
-                    <span class="tl-unit">s</span>
+                    <input type="number" min="0.1" step="0.1" value="@Sec(d)" @onchange="e => SetSoundDuration(sc, e)" aria-label='@L["timeline.clipDurationAria"]' />
+                    <span class="tl-unit">@L["common.secondsShort"]</span>
                 }
                 else if (isLoop)
                 {
-                    <span class="tl-unit"><Icon Name="repeat" /> until stopped</span>
+                    <span class="tl-unit"><Icon Name="repeat" /> @L["timeline.untilStopped"]</span>
                 }
                 else
                 {
-                    <span class="tl-unit">natural@(natural is { } n ? $" (~{FormatSeconds(n)})" : "")</span>
+                    <span class="tl-unit">@(natural is { } n ? L.Format("timeline.naturalWithLen", FormatSeconds(n)) : L["timeline.natural"])</span>
                 }
             </div>
         </div>
 
         <div class="chip-row">
-            <Chip On="sc.DurationMs is null" OnClick="() => ToggleNatural(sc)">@(isLoop ? "Loop until stopped" : "Play to natural end")</Chip>
-            <Chip On="sc.Volume is not null" OnClick="() => ToggleSoundVolume(sc)">Set volume</Chip>
+            <Chip On="sc.DurationMs is null" OnClick="() => ToggleNatural(sc)">@(isLoop ? L["timeline.loopUntilStopped"] : L["timeline.playToNaturalEnd"])</Chip>
+            <Chip On="sc.Volume is not null" OnClick="() => ToggleSoundVolume(sc)">@L["timeline.setVolume"]</Chip>
         </div>
         @if (sc.Volume is not null)
         {
-            <SliderRow LeftIcon="volume" Min="0" Max="100" Suffix="%" Value="@VolPct(sc)" ValueChanged="v => SetSoundVolume(sc, v)" AriaLabel="Clip volume" />
+            <SliderRow LeftIcon="volume" Min="0" Max="100" Suffix="%" Value="@VolPct(sc)" ValueChanged="v => SetSoundVolume(sc, v)" AriaLabel='@L["timeline.clipVolumeAria"]' />
         }
 
         @if (sc.DurationMs is { } dur && natural is { } nat && !isLoop && dur < nat)
         {
-            <p class="hint" style="margin-top:0.6rem"><Icon Name="cut" /> Cut short: plays @FormatSeconds(dur) of the sound's ~@FormatSeconds(nat).</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="cut" /> @L.Format("timeline.cutShort", FormatSeconds(dur), FormatSeconds(nat))</p>
         }
         else if (sc.DurationMs is { } dl && isLoop)
         {
-            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> Looping sound — repeats to fill @FormatSeconds(dl).</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> @L.Format("timeline.loopFill", FormatSeconds(dl))</p>
         }
         else if (sc.DurationMs is null && isLoop)
         {
-            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> Loops until the event is stopped.</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> @L["timeline.loopsUntilStopped"]</p>
         }
         @if (!SoundKnown(sc.SoundId))
         {
-            <p class="hint" style="margin-top:0.6rem"><Icon Name="warn" /> This sound is no longer in your library.</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="warn" /> @L["timeline.soundMissing"]</p>
         }
     </div>
 }
@@ -188,20 +189,20 @@ else if (SelectedLight is { } lc)
     <div class="panel tl-inspector">
         <div class="tl-insp-head">
             <span class="tl-insp-title"><Icon Name="lights" /> @LightName(lc.LightKey)</span>
-            <button class="btn btn--small btn--danger" @onclick="() => DeleteLight(lc)">Delete clip</button>
+            <button class="btn btn--small btn--danger" @onclick="() => DeleteLight(lc)">@L["timeline.deleteClip"]</button>
         </div>
 
         <div class="field" style="margin-bottom:0.8rem">
-            <label for="tl-lightpick">Light</label>
+            <label for="tl-lightpick">@L["timeline.light"]</label>
             <select id="tl-lightpick" value="@(lc.LightKey ?? "")" @onchange="e => SetLightKey(lc, e)">
-                <option value="">All lights</option>
+                <option value="">@L["common.allLights"]</option>
                 @foreach (var reg in Lights)
                 {
                     <option value="@reg.Key">@reg.Name</option>
                 }
                 @if (lc.LightKey is { Length: > 0 } lk && !Lights.Any(r => string.Equals(r.Key, lk, StringComparison.OrdinalIgnoreCase)))
                 {
-                    <option value="@lk">@lk (unknown light)</option>
+                    <option value="@lk">@L.Format("timeline.unknownLight", lk)</option>
                 }
             </select>
         </div>
@@ -210,11 +211,11 @@ else if (SelectedLight is { } lc)
 
         @if (lc.Mode is "color" or "white")
         {
-            <p class="section-h">Effect</p>
+            <p class="section-h">@L["timeline.effect"]</p>
             <div class="chip-row">
                 @foreach (var (type, label) in Palette.Effects)
                 {
-                    <Chip On="lc.Effect.Type == type" OnClick="() => lc.Effect.Type = type">@if (Palette.EffectIcon(type) is { Length: > 0 } ic) { <Icon Name="@ic" /> }@label</Chip>
+                    <Chip On="lc.Effect.Type == type" OnClick="() => lc.Effect.Type = type">@if (Palette.EffectIcon(type) is { Length: > 0 } ic) { <Icon Name="@ic" /> }@L[label]</Chip>
                 }
             </div>
 
@@ -229,21 +230,21 @@ else if (SelectedLight is { } lc)
                 @if (lc.Mode == "color")
                 {
                     <SwatchGrid Selected="lc.Color" OnPick="hex => lc.Color = hex" Style="margin-top:1rem" />
-                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel='@L["timeline.brightnessAria"]' />
                 }
                 else
                 {
-                    <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="lc.Temperature" AriaLabel="Color temperature" />
-                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                    <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="lc.Temperature" AriaLabel='@L["timeline.colorTempAria"]' />
+                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel='@L["timeline.brightnessAria"]' />
                 }
                 @if (lc.Effect.Type != "none")
                 {
-                    <p class="hint" style="margin-top:0.6rem"><Icon Name="effects" /> The effect animates from this base @(lc.Mode == "color" ? "color" : "white tone") and brightness.</p>
+                    <p class="hint" style="margin-top:0.6rem"><Icon Name="effects" /> @L.Format("timeline.effectBase", lc.Mode == "color" ? L["timeline.baseColor"] : L["timeline.baseWhiteTone"])</p>
                 }
             }
             else if (Palette.EffectUsesBaseBrightness(lc.Effect.Type))
             {
-                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel='@L["timeline.brightnessAria"]' />
             }
 
             @if (lc.Effect.Type == "custom")
@@ -252,11 +253,11 @@ else if (SelectedLight is { } lc)
             }
             else if (lc.Effect.Type is not ("none" or "fx"))
             {
-                <SliderRow LeftIcon="speed" Min="1" Max="10" @bind-Value="lc.Effect.Speed" AriaLabel="Speed" />
-                <SliderRow LeftIcon="bright" Min="1" Max="10" @bind-Value="lc.Effect.Intensity" AriaLabel="Intensity" />
+                <SliderRow LeftIcon="speed" Min="1" Max="10" @bind-Value="lc.Effect.Speed" AriaLabel='@L["timeline.speedAria"]' />
+                <SliderRow LeftIcon="bright" Min="1" Max="10" @bind-Value="lc.Effect.Intensity" AriaLabel='@L["timeline.intensityAria"]' />
                 @if (lc.Effect.Type == "drift")
                 {
-                    <p class="hint" style="margin-top:0.6rem">Tap colors to build a palette (2–4). Drift blends between them.</p>
+                    <p class="hint" style="margin-top:0.6rem">@L["timeline.driftHint"]</p>
                     @if (lc.Effect.Colors.Count > 0)
                     {
                         <div class="palette-chips">
@@ -264,7 +265,7 @@ else if (SelectedLight is { } lc)
                             {
                                 <span class="pal-chip">
                                     <span class="pal-dot" style="background:@c"></span>@c.ToUpperInvariant()
-                                    <button class="pal-x" title="Remove color" aria-label="Remove color" @onclick="() => lc.Effect.Colors.Remove(c)"><Icon Name="close" /></button>
+                                    <button class="pal-x" title='@L["timeline.removeColor"]' aria-label='@L["timeline.removeColor"]' @onclick="() => lc.Effect.Colors.Remove(c)"><Icon Name="close" /></button>
                                 </span>
                             }
                         </div>
@@ -275,19 +276,19 @@ else if (SelectedLight is { } lc)
         }
         else
         {
-            <p class="hint" style="margin-top:0.8rem">This clip switches the light off for its window.</p>
+            <p class="hint" style="margin-top:0.8rem">@L["timeline.offClipHint"]</p>
         }
 
         <div class="tl-insp-inline" style="margin-top:1rem">
             <div class="tl-fld">
-                <label>Start</label>
-                <input type="number" min="0" step="0.1" value="@Sec(lc.StartMs)" @onchange="e => SetStart(lc, e)" aria-label="Clip start" />
-                <span class="tl-unit">s</span>
+                <label>@L["timeline.start"]</label>
+                <input type="number" min="0" step="0.1" value="@Sec(lc.StartMs)" @onchange="e => SetStart(lc, e)" aria-label='@L["timeline.clipStartAria"]' />
+                <span class="tl-unit">@L["common.secondsShort"]</span>
             </div>
             <div class="tl-fld">
-                <label>Duration</label>
-                <input type="number" min="0.1" step="0.1" value="@Sec(lc.DurationMs)" @onchange="e => SetLightDuration(lc, e)" aria-label="Clip duration" />
-                <span class="tl-unit">s</span>
+                <label>@L["timeline.duration"]</label>
+                <input type="number" min="0.1" step="0.1" value="@Sec(lc.DurationMs)" @onchange="e => SetLightDuration(lc, e)" aria-label='@L["timeline.clipDurationAria"]' />
+                <span class="tl-unit">@L["common.secondsShort"]</span>
             </div>
         </div>
     </div>
@@ -304,7 +305,8 @@ else if (SelectedLight is { } lc)
     private const int SnapMs = 100;
     private const int DefaultSoundMs = 2000;
 
-    private static readonly (string, string)[] ModeOptions = [("color", "Color"), ("white", "White"), ("off", "Off")];
+    private (string, string)[] ModeOptions =>
+        [("color", L["common.modeColor"]), ("white", L["common.modeWhite"]), ("off", L["common.modeOff"])];
 
     private ElementReference _rootEl;
     private DotNetObjectReference<TimelineEditor>? _selfRef;
@@ -344,7 +346,7 @@ else if (SelectedLight is { } lc)
     private string SoundClipTimeLabel(TimelineSoundEdit s, int displayMs)
     {
         if (s.DurationMs is { } d) return ClipTimeLabel(s.StartMs, d, false);
-        if (SoundLoop(s.SoundId)) return $"{Sec(s.StartMs)}s · until stopped";
+        if (SoundLoop(s.SoundId)) return L.Format("timeline.clipTimeUntilStopped", Sec(s.StartMs));
         return ClipTimeLabel(s.StartMs, displayMs, true);
     }
 
@@ -387,7 +389,7 @@ else if (SelectedLight is { } lc)
     private bool SoundLoop(string id) => Sound(id)?.Loop ?? false;
 
     private string LightName(string? key) =>
-        string.IsNullOrWhiteSpace(key) ? "All lights"
+        string.IsNullOrWhiteSpace(key) ? L["common.allLights"]
         : Lights.FirstOrDefault(r => string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase))?.Name ?? key;
 
     // Decorative keyframe markers along a "custom" light clip: one thin tick at each keyframe time, repeating
@@ -595,10 +597,12 @@ else if (SelectedLight is { } lc)
     private static string Sec(int ms) => (ms / 1000.0).ToString("0.##", Inv);
     private static int ParseMs(ChangeEventArgs e) =>
         double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, Inv, out var s) ? (int)Math.Round(s * 1000) : 0;
-    private static string FormatSeconds(int ms) => (ms / 1000.0).ToString("0.#", Inv) + "s";
+    private string FormatSeconds(int ms) => L.Format("timeline.seconds", (ms / 1000.0).ToString("0.#", Inv));
 
     private string ClipTimeLabel(int startMs, int durMs, bool natural) =>
-        $"{Sec(startMs)}s · {(natural ? "→end" : FormatSeconds(durMs))}";
+        natural
+            ? L.Format("timeline.clipTimeToEnd", Sec(startMs))
+            : L.Format("timeline.clipTime", Sec(startMs), FormatSeconds(durMs));
 
     public async ValueTask DisposeAsync()
     {

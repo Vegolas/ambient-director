@@ -1,15 +1,17 @@
 @* The mood colour palette. Highlights Selected (when set) and, unless ShowCustom is false,
    offers a custom colour picker. Every pick — swatch or custom — raises OnPick with the hex. *@
+@inject Localizer L
+
 <div class="swatch-grid" style="@Style">
     @foreach (var (hex, name) in Palette.Moods)
     {
         <button class="swatch @(IsPicked(hex) ? "picked" : "")"
-                style="background:@hex; --swc:@hex" title="@name" aria-label="@name"
+                style="background:@hex; --swc:@hex" title='@L[name]' aria-label='@L[name]'
                 @onclick="() => OnPick.InvokeAsync(hex)"></button>
     }
     @if (ShowCustom)
     {
-        <input type="color" value="@CustomValue" title="Custom color" @onchange="OnCustomChanged" />
+        <input type="color" value="@CustomValue" title='@L["swatchGrid.customColor"]' @onchange="OnCustomChanged" />
     }
 </div>
 

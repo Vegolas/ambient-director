@@ -7,16 +7,17 @@
 @inject UiState Ui
 @inject NavigationManager Nav
 @inject ViewTransition Vt
+@inject Localizer L
 
-<PageTitle>Scene Maker — @(_isNew ? "New scene" : "Edit scene")</PageTitle>
+<PageTitle>Scene Maker — @(_isNew ? L["sceneEditor.titleNew"] : L["sceneEditor.titleEdit"])</PageTitle>
 
 @if (_loading)
 {
-    <p class="empty-note">Unrolling the scroll…</p>
+    <p class="empty-note">@L["sceneEditor.loading"]</p>
 }
 else
 {
-    <div class="page-head"><h1>@(_isNew ? "New Scene" : "Edit Scene")</h1></div>
+    <div class="page-head"><h1>@(_isNew ? L["sceneEditor.titleNew"] : L["sceneEditor.titleEdit"])</h1></div>
 
     <div class="panel">
         <div class="emoji-row">
@@ -26,23 +27,23 @@ else
             }
         </div>
         <div class="field" style="margin-top:1rem;margin-bottom:0">
-            <label for="scene-label">Name</label>
-            <input id="scene-label" type="text" value="@_label" @oninput="OnLabelInput" placeholder="e.g. Tavern" />
+            <label for="scene-label">@L["sceneEditor.nameLabel"]</label>
+            <input id="scene-label" type="text" value="@_label" @oninput="OnLabelInput" placeholder='@L["sceneEditor.namePlaceholder"]' />
         </div>
         <p class="hint" style="margin-top:0.6rem">
             @if (_isNew)
             {
-                <span>Stream Deck URL: <code>/scenes/@(CurrentId is { Length: > 0 } cid ? cid : "…")/activate</code></span>
+                <span>@L["sceneEditor.streamDeckUrl"]: <code>/scenes/@(CurrentId is { Length: > 0 } cid ? cid : "…")/activate</code></span>
             }
             else
             {
-                <span>Id: <code>@_edit.Id</code> (fixed) — <code>/scenes/@_edit.Id/activate</code></span>
+                <span>@L["sceneEditor.idLabel"]: <code>@_edit.Id</code> @L["sceneEditor.idFixed"] — <code>/scenes/@_edit.Id/activate</code></span>
             }
         </p>
         <ArtField @bind-Image="_edit.Image" />
     </div>
 
-    <SectionHeading>Lights</SectionHeading>
+    <SectionHeading>@L["sceneEditor.lightsHeading"]</SectionHeading>
     <div class="panel">
         <Segmented TValue="LightScope" Options="ScopeOptions" Value="_scope" ValueChanged="SetScope" />
 
@@ -53,23 +54,23 @@ else
             @if (_lightMode == LightMode.Color)
             {
                 <SwatchGrid Selected="_color" OnPick="@(hex => _color = hex)" Style="margin-top:1rem" />
-                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="_brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="_brightness" AriaLabel='@L["sceneEditor.brightnessAria"]' />
             }
             else if (_lightMode == LightMode.White)
             {
-                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="_temperature" AriaLabel="Color temperature" />
-                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="_brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="_temperature" AriaLabel='@L["sceneEditor.tempAria"]' />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="_brightness" AriaLabel='@L["sceneEditor.brightnessAria"]' />
             }
             else
             {
-                <p class="hint" style="margin-top:0.8rem">The scene switches the lights off.</p>
+                <p class="hint" style="margin-top:0.8rem">@L["sceneEditor.lightsOffHint"]</p>
             }
         }
         else if (_scope == LightScope.PerLight)
         {
             @if (_perLight.Count == 0)
             {
-                <p class="hint" style="margin-top:1rem">Register your lights in <a href="settings">Settings</a> first.</p>
+                <p class="hint" style="margin-top:1rem">@L["sceneEditor.registerLightsPre"]<a href="settings">@L["sceneEditor.settingsLink"]</a>@L["sceneEditor.registerLightsPost"]</p>
             }
             else
             {
@@ -78,8 +79,8 @@ else
                     {
                         <div class="light-row @(row.Expanded ? "open" : "")">
                             <button class="light-head" @onclick="() => row.Expanded = !row.Expanded">
-                                <span class="reg-badge @(row.Provider == "hue" ? "hue" : "tuya")">@LightFormat.ProviderLabel(row.Provider)</span>
-                                <span class="light-name">@row.Name @(row.Known ? "" : "(unknown light)")</span>
+                                <span class="reg-badge @(row.Provider == "hue" ? "hue" : "tuya")">@L[LightFormat.ProviderLabelKey(row.Provider)]</span>
+                                <span class="light-name">@row.Name @(row.Known ? "" : L["sceneEditor.unknownLight"])</span>
                                 <span class="light-summary">@Summary(row)</span>
                                 <span class="light-caret"><Icon Name="@(row.Expanded ? "caret-down" : "caret-right")" /></span>
                             </button>
@@ -91,11 +92,11 @@ else
 
                                     @if (row.Edit.Mode is "color" or "white")
                                     {
-                                        <p class="section-h">Effect</p>
+                                        <p class="section-h">@L["sceneEditor.effectLabel"]</p>
                                         <div class="chip-row">
                                             @foreach (var (type, label) in Palette.Effects)
                                             {
-                                                <Chip On="row.Edit.Effect.Type == type" OnClick="() => SetEffect(row, type)">@if (Palette.EffectIcon(type) is { Length: > 0 } ic) { <Icon Name="@ic" /> }@label</Chip>
+                                                <Chip On="row.Edit.Effect.Type == type" OnClick="() => SetEffect(row, type)">@if (Palette.EffectIcon(type) is { Length: > 0 } ic) { <Icon Name="@ic" /> }@L[label]</Chip>
                                             }
                                         </div>
 
@@ -110,21 +111,21 @@ else
                                             @if (row.Edit.Mode == "color")
                                             {
                                                 <SwatchGrid Selected="row.Edit.Color" OnPick="@(hex => row.Edit.Color = hex)" Style="margin-top:1rem" />
-                                                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel="Brightness" />
+                                                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel='@L["sceneEditor.brightnessAria"]' />
                                             }
                                             else
                                             {
-                                                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="row.Edit.Temperature" AriaLabel="Color temperature" />
-                                                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel="Brightness" />
+                                                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="row.Edit.Temperature" AriaLabel='@L["sceneEditor.tempAria"]' />
+                                                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel='@L["sceneEditor.brightnessAria"]' />
                                             }
                                             @if (row.Edit.Effect.Type != "none")
                                             {
-                                                <p class="hint" style="margin-top:0.6rem"><Icon Name="effects" /> The effect animates from this base @(row.Edit.Mode == "color" ? "color" : "white tone") and brightness.</p>
+                                                <p class="hint" style="margin-top:0.6rem"><Icon Name="effects" /> @L.Format("sceneEditor.effectBaseHint", row.Edit.Mode == "color" ? L["sceneEditor.baseColorWord"] : L["sceneEditor.baseWhiteWord"])</p>
                                             }
                                         }
                                         else if (Palette.EffectUsesBaseBrightness(row.Edit.Effect.Type))
                                         {
-                                            <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel="Brightness" />
+                                            <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="row.Edit.Brightness" AriaLabel='@L["sceneEditor.brightnessAria"]' />
                                         }
 
                                         @if (row.Edit.Effect.Type == "custom")
@@ -133,12 +134,12 @@ else
                                         }
                                         else if (row.Edit.Effect.Type is not ("none" or "fx"))
                                         {
-                                            <SliderRow LeftIcon="speed" Min="1" Max="10" @bind-Value="row.Edit.Effect.Speed" AriaLabel="Speed" />
-                                            <SliderRow LeftIcon="bright" Min="1" Max="10" @bind-Value="row.Edit.Effect.Intensity" AriaLabel="Intensity" />
+                                            <SliderRow LeftIcon="speed" Min="1" Max="10" @bind-Value="row.Edit.Effect.Speed" AriaLabel='@L["sceneEditor.speedAria"]' />
+                                            <SliderRow LeftIcon="bright" Min="1" Max="10" @bind-Value="row.Edit.Effect.Intensity" AriaLabel='@L["sceneEditor.intensityAria"]' />
 
                                             @if (row.Edit.Effect.Type == "drift")
                                             {
-                                                <p class="hint" style="margin-top:0.6rem">Tap colors to build a palette (2–4). Drift blends between them.</p>
+                                                <p class="hint" style="margin-top:0.6rem">@L["sceneEditor.driftHint"]</p>
                                                 @if (row.Edit.Effect.Colors.Count > 0)
                                                 {
                                                     <div class="palette-chips">
@@ -146,7 +147,7 @@ else
                                                         {
                                                             <span class="pal-chip">
                                                                 <span class="pal-dot" style="background:@c"></span>@c.ToUpperInvariant()
-                                                                <button class="pal-x" title="Remove color" aria-label="Remove color" @onclick="() => RemovePaletteColor(row, c)"><Icon Name="close" /></button>
+                                                                <button class="pal-x" title='@L["sceneEditor.removeColor"]' aria-label='@L["sceneEditor.removeColor"]' @onclick="() => RemovePaletteColor(row, c)"><Icon Name="close" /></button>
                                                             </span>
                                                         }
                                                     </div>
@@ -157,15 +158,15 @@ else
                                     }
                                     else if (row.Edit.Mode == "off")
                                     {
-                                        <p class="hint" style="margin-top:0.8rem">This light is switched off.</p>
+                                        <p class="hint" style="margin-top:0.8rem">@L["sceneEditor.lightOffHint"]</p>
                                     }
                                     else
                                     {
-                                        <p class="hint" style="margin-top:0.8rem">This light is left untouched.</p>
+                                        <p class="hint" style="margin-top:0.8rem">@L["sceneEditor.lightSkipHint"]</p>
                                     }
 
                                     <div class="btn-row" style="margin-top:1rem">
-                                        <button class="btn btn--small" @onclick="() => CopyToAll(row)">Copy to all lights</button>
+                                        <button class="btn btn--small" @onclick="() => CopyToAll(row)">@L["sceneEditor.copyToAll"]</button>
                                     </div>
                                 </div>
                             }
@@ -176,57 +177,57 @@ else
         }
     </div>
 
-    <SectionHeading>Music</SectionHeading>
+    <SectionHeading>@L["sceneEditor.musicHeading"]</SectionHeading>
     <div class="panel">
         <Segmented TValue="MusicChoice" Options="MusicOptions" Value="_music" ValueChanged="@(m => _music = m)" />
 
         @if (_music == MusicChoice.Play)
         {
             <div class="field" style="margin-top:1rem;margin-bottom:0">
-                <label for="music-uri">Spotify URI or link</label>
+                <label for="music-uri">@L["sceneEditor.musicUriLabel"]</label>
                 <input id="music-uri" type="text" value="@_playId" @oninput="e => _playId = e.Value?.ToString() ?? string.Empty"
                        placeholder="spotify:playlist:… or https://open.spotify.com/…" />
             </div>
 
             <PlaylistPicker Playlists="_playlists" SelectedUri="_playId" OnPick="pl => _playId = pl.Uri" ListStyle="margin-top:1rem">
                 <EmptyContent>
-                    <p class="hint" style="margin-top:0.8rem">Connect Spotify in <a href="settings">Settings</a> to pick from your playlists, or paste a link above.</p>
+                    <p class="hint" style="margin-top:0.8rem">@L["sceneEditor.connectSpotifyPre"]<a href="settings">@L["sceneEditor.settingsLink"]</a>@L["sceneEditor.connectSpotifyPost"]</p>
                 </EmptyContent>
             </PlaylistPicker>
 
             <div class="chip-row" style="margin-top:1rem">
-                <Chip On="_setVolume" OnClick="() => _setVolume = !_setVolume">Set volume</Chip>
+                <Chip On="_setVolume" OnClick="() => _setVolume = !_setVolume">@L["sceneEditor.setVolume"]</Chip>
             </div>
             @if (_setVolume)
             {
-                <SliderRow LeftIcon="volume" Min="0" Max="100" Suffix="%" @bind-Value="_volumePercent" AriaLabel="Volume" />
+                <SliderRow LeftIcon="volume" Min="0" Max="100" Suffix="%" @bind-Value="_volumePercent" AriaLabel='@L["sceneEditor.volumeAria"]' />
             }
         }
         else if (_music == MusicChoice.Pause)
         {
-            <p class="hint" style="margin-top:0.8rem">The scene pauses whatever is playing.</p>
+            <p class="hint" style="margin-top:0.8rem">@L["sceneEditor.musicPauseHint"]</p>
         }
     </div>
 
-    <SectionHeading>Sound Effects</SectionHeading>
+    <SectionHeading>@L["sceneEditor.soundsHeading"]</SectionHeading>
     <div class="panel">
         @if (_sounds is null || _sounds.Count == 0)
         {
             <p class="hint" style="margin:0">
-                No sounds imported yet. Add some on the <a href="sounds">Sounds</a> tab, then pick them here.
+                @L["sceneEditor.noSoundsPre"]<a href="sounds">@L["sceneEditor.soundsLink"]</a>@L["sceneEditor.noSoundsPost"]
             </p>
         }
         else
         {
-            <p class="hint" style="margin-top:0">Activating the scene stops current playback, then fires the picked sounds (each with its own volume/loop).</p>
-            @foreach (var group in _sounds.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? "Uncategorized" : s.Category))
+            <p class="hint" style="margin-top:0">@L["sceneEditor.soundsHint"]</p>
+            @foreach (var group in _sounds.GroupBy(s => string.IsNullOrWhiteSpace(s.Category) ? L["sceneEditor.uncategorized"] : s.Category))
             {
                 <p class="section-h">@group.Key</p>
                 <div class="klist">
                     @foreach (var sound in group)
                     {
                         var picked = _soundEffects.Contains(sound.Id);
-                        <KRow IconName="@(picked ? "check-on" : "check-off")" Title="@sound.Name" Hint="@(sound.Loop ? "loop" : null)"
+                        <KRow IconName="@(picked ? "check-on" : "check-off")" Title="@sound.Name" Hint='@(sound.Loop ? L["sceneEditor.loopHint"] : null)'
                               Selected="picked" OnClick="() => ToggleSound(sound.Id)" />
                     }
                 </div>
@@ -241,26 +242,26 @@ else
         }
         @if (unknownSoundIds.Count > 0)
         {
-            <p class="section-h">Unknown — no longer in your library</p>
+            <p class="section-h">@L["sceneEditor.unknownHeading"]</p>
             <div class="klist">
                 @foreach (var sid in unknownSoundIds)
                 {
-                    <KRow IconName="warn" Title="@sid" Hint="removed sound — tap to drop" OnClick="() => RemoveSound(sid)" />
+                    <KRow IconName="warn" Title="@sid" Hint='@L["sceneEditor.removedSoundHint"]' OnClick="() => RemoveSound(sid)" />
                 }
             </div>
         }
     </div>
 
-    <SectionHeading>Save</SectionHeading>
+    <SectionHeading>@L["common.save"]</SectionHeading>
     <div class="btn-row">
-        <button class="btn btn--primary" @onclick="() => Save(test: false)" disabled="@_busy">Save</button>
-        <button class="btn" @onclick="() => Save(test: true)" disabled="@_busy">Save &amp; Test</button>
+        <button class="btn btn--primary" @onclick="() => Save(test: false)" disabled="@_busy">@L["common.save"]</button>
+        <button class="btn" @onclick="() => Save(test: true)" disabled="@_busy">@L["common.saveAndTest"]</button>
     </div>
     @if (!_isNew)
     {
         <div class="btn-row" style="margin-top:0.7rem">
             <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? "Really delete?" : "Delete scene")
+                @(_confirmDelete ? L["common.reallyDelete"] : L["sceneEditor.deleteBtn"])
             </button>
         </div>
     }
@@ -273,15 +274,16 @@ else
     private enum LightMode { Color, White, Off }
     private enum MusicChoice { None, Play, Pause }
 
-    // Segmented control options.
-    private static readonly (LightScope, string)[] ScopeOptions =
-        [(LightScope.None, "Leave alone"), (LightScope.All, "All lights"), (LightScope.PerLight, "Per light")];
-    private static readonly (LightMode, string)[] ModeOptions =
-        [(LightMode.Color, "Color"), (LightMode.White, "White"), (LightMode.Off, "Turn off")];
-    private static readonly (MusicChoice, string)[] MusicOptions =
-        [(MusicChoice.None, "None"), (MusicChoice.Play, "Play"), (MusicChoice.Pause, "Pause")];
-    private static readonly (string, string)[] RowModeOptions =
-        [("skip", "Skip"), ("color", "Color"), ("white", "White"), ("off", "Off")];
+    // Segmented control options. Labels resolve through the localizer, so these are instance
+    // properties rebuilt per render (they can't be static — L is an injected instance member).
+    private (LightScope, string)[] ScopeOptions =>
+        [(LightScope.None, L["common.leaveAlone"]), (LightScope.All, L["common.allLights"]), (LightScope.PerLight, L["common.perLight"])];
+    private (LightMode, string)[] ModeOptions =>
+        [(LightMode.Color, L["common.modeColor"]), (LightMode.White, L["common.modeWhite"]), (LightMode.Off, L["common.turnOff"])];
+    private (MusicChoice, string)[] MusicOptions =>
+        [(MusicChoice.None, L["common.none"]), (MusicChoice.Play, L["common.play"]), (MusicChoice.Pause, L["common.pause"])];
+    private (string, string)[] RowModeOptions =>
+        [("skip", L["common.skip"]), ("color", L["common.modeColor"]), ("white", L["common.modeWhite"]), ("off", L["common.modeOff"])];
 
     // One editable per-light row: the persisted fields plus registry display metadata.
     private class LightRow
@@ -343,7 +345,7 @@ else
             var scene = await Api.GetSceneAsync(SceneId!);
             if (scene is null)
             {
-                Ui.ReportError($"Couldn't load scene \"{SceneId}\".");
+                Ui.ReportError(L.Format("sceneEditor.toast.loadFailed", SceneId));
                 Nav.NavigateTo("");
                 return;
             }
@@ -427,14 +429,14 @@ else
     {
         if (string.IsNullOrWhiteSpace(_label))
         {
-            Ui.ReportError("Give the scene a name first.");
+            Ui.ReportError(L["sceneEditor.toast.nameFirst"]);
             return;
         }
 
         var id = CurrentId;
         if (string.IsNullOrEmpty(id))
         {
-            Ui.ReportError("Couldn't derive an id from that name — use some letters or digits.");
+            Ui.ReportError(L["sceneEditor.toast.noId"]);
             return;
         }
 
@@ -445,7 +447,7 @@ else
                 r.Edit.Mode is "color" or "white" && r.Edit.Effect.Type == "drift" && r.Edit.Effect.Colors.Count < 2);
             if (badDrift is not null)
             {
-                Ui.ReportError($"“{badDrift.Name}”: the Drift effect needs at least 2 colors.");
+                Ui.ReportError(L.Format("sceneEditor.toast.driftColors", badDrift.Name));
                 return;
             }
         }
@@ -472,11 +474,11 @@ else
                 if (result is null) return;
                 if (result.FullySucceeded)
                 {
-                    Ui.ReportOk($"Saved — scene \"{id}\" is live");
+                    Ui.ReportOk(L.Format("sceneEditor.toast.savedLive", id));
                 }
                 else
                 {
-                    Ui.ReportError($"Saved, but partially applied. {result.ProblemSummary()}");
+                    Ui.ReportError(L.Format("sceneEditor.toast.savedPartial", result.ProblemSummary()));
                 }
                 // On create, keep editing the freshly-made scene rather than re-creating it.
                 if (_isNew)
@@ -484,7 +486,7 @@ else
             }
             else
             {
-                Ui.ReportOk($"Saved scene \"{id}\"");
+                Ui.ReportOk(L.Format("sceneEditor.toast.saved", id));
                 await Vt.NavigateAsync("");
             }
         }
@@ -570,20 +572,21 @@ else
             row.Edit.Temperature = src.Edit.Temperature;
             row.Edit.Effect = src.Edit.Effect.Clone();
         }
-        Ui.ReportOk("Copied to every light");
+        Ui.ReportOk(L["sceneEditor.toast.copiedAll"]);
     }
 
     // Collapsed one-line summary, e.g. "Flicker · #FF8C2A 80%" or "White · warm 60%" or "Skip".
-    private static string Summary(LightRow row)
+    // Instance (not static): the labels are resolved through the localizer.
+    private string Summary(LightRow row)
     {
         var e = row.Edit;
-        var fx = e.Effect.Type == "none" ? "" : $"{LightFormat.EffectLabel(e.Effect.Type)} · ";
+        var fx = e.Effect.Type == "none" ? "" : $"{L[LightFormat.EffectLabelKey(e.Effect.Type)]} · ";
         return e.Mode switch
         {
             "color" => $"{fx}{e.Color.ToUpperInvariant()} {e.Brightness}%",
-            "white" => $"{fx}White · {LightFormat.TempWord(e.Temperature)} {e.Brightness}%",
-            "off" => "Off",
-            _ => "Skip",
+            "white" => $"{fx}{L["common.modeWhite"]} · {L[LightFormat.TempWordKey(e.Temperature)]} {e.Brightness}%",
+            "off" => L["common.modeOff"],
+            _ => L["common.skip"],
         };
     }
 
@@ -626,12 +629,12 @@ else
             var (ok, error) = await Api.DeleteSceneAsync(_edit.Id);
             if (ok)
             {
-                Ui.ReportOk($"Deleted scene \"{_edit.Id}\"");
+                Ui.ReportOk(L.Format("sceneEditor.toast.deleted", _edit.Id));
                 await Vt.NavigateAsync("");
             }
             else
             {
-                Ui.ReportError(error ?? "Delete failed.");
+                Ui.ReportError(error ?? L["sceneEditor.toast.deleteFailed"]);
             }
         }
         finally

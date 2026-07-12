@@ -4,21 +4,22 @@
 @inject UiState Ui
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject Localizer L
 
-<PageTitle>Scene Maker — Assistant</PageTitle>
+<PageTitle>Scene Maker — @L["assistant.title"]</PageTitle>
 
-<div class="page-head"><h1>Assistant</h1></div>
+<div class="page-head"><h1>@L["assistant.title"]</h1></div>
 
 @if (!_loaded)
 {
-    <p class="empty-note">Waking the familiar…</p>
+    <p class="empty-note">@L["assistant.loading"]</p>
 }
 else if (!_configured)
 {
     <div class="panel">
-        <p class="hint" style="margin-top:0">Pick an AI provider and add its API key on the Settings page to enable the assistant.</p>
+        <p class="hint" style="margin-top:0">@L["assistant.noKeyNotice"]</p>
         <div class="btn-row">
-            <button class="btn btn--primary" @onclick='() => Nav.NavigateTo("settings")'>Open Settings</button>
+            <button class="btn btn--primary" @onclick='() => Nav.NavigateTo("settings")'>@L["assistant.openSettings"]</button>
         </div>
     </div>
 }
@@ -28,7 +29,7 @@ else
         <div class="chat-log">
             @if (_entries.Count == 0)
             {
-                <p class="empty-note">Ask me to build a scene, wire up an event, or design a light effect.</p>
+                <p class="empty-note">@L["assistant.emptyPrompt"]</p>
             }
             @foreach (var e in _entries)
             {
@@ -57,25 +58,25 @@ else
             }
             @if (_busy)
             {
-                <div class="chat-thinking"><span class="chat-thinking-dot"></span>thinking…</div>
+                <div class="chat-thinking"><span class="chat-thinking-dot"></span>@L["assistant.thinking"]</div>
             }
         </div>
 
         <div class="chat-composer">
-            <textarea class="chat-input" rows="2" placeholder="Message the assistant…"
+            <textarea class="chat-input" rows="2" placeholder='@L["assistant.placeholder"]'
                       @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown"
                       disabled="@_busy"></textarea>
             <div class="chat-actions">
                 @if (_busy)
                 {
-                    <button class="btn btn--danger" @onclick="StopAsync">Stop</button>
+                    <button class="btn btn--danger" @onclick="StopAsync">@L["common.stop"]</button>
                 }
                 else
                 {
                     <button class="btn btn--primary" @onclick="SendAsync"
-                            disabled="@string.IsNullOrWhiteSpace(_input)">Send</button>
+                            disabled="@string.IsNullOrWhiteSpace(_input)">@L["assistant.send"]</button>
                 }
-                <button class="btn" @onclick="ClearAsync" disabled="@_busy">Clear</button>
+                <button class="btn" @onclick="ClearAsync" disabled="@_busy">@L["assistant.clear"]</button>
             </div>
         </div>
     </div>
@@ -129,7 +130,7 @@ else
         var (ok, error) = await Api.SendAssistantMessageAsync(text);
         if (!ok)
         {
-            Ui.ReportError(error ?? "Could not send the message.");
+            Ui.ReportError(error ?? L["assistant.toast.sendFailed"]);
             return;
         }
         await PollAsync(); // reflect the queued message + busy state without waiting for the next tick

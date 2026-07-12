@@ -34,7 +34,12 @@ Two projects under `src/`; the solution file lives at
 - **RpgSceneMaker.Ui** — Blazor WASM control panel. Pages in `Pages/` (Scenes, Screens, Music, Lights, Sounds, Events, Effects, Assistant, Settings, Logs — the Assistant tab is the BYOK chat, polling `/assistant/state`, and only appears in the nav once a provider key is configured);
   reusable components in `Components/`; wire DTOs and editor form models in `Contracts/`; shared
   constants/helpers in `Shared/` (Palette, SceneNaming, LightFormat, UiExtensions, Icons). All server calls go
-  through [ApiClient.cs](src/RpgSceneMaker.Ui/Services/ApiClient.cs). **UI chrome icons** are Phosphor Fill
+  through [ApiClient.cs](src/RpgSceneMaker.Ui/Services/ApiClient.cs). **UI text is localized at runtime** by the
+  injected `Localizer` ([Localizer.cs](src/RpgSceneMaker.Ui/Services/Localizer.cs)): components read strings by
+  dotted key (`@L["nav.scenes"]`, `L.Format`, `L.Plural`), the language is a per-device localStorage pref,
+  `App.razor` loads strings from `/i18n` before first render, and switching language (Settings → Language)
+  swaps the active table + re-renders with no reload. `Palette`/`LightFormat` label helpers return i18n keys
+  (not text). **UI chrome icons** are Phosphor Fill
   SVGs: [`Icon.razor`](src/RpgSceneMaker.Ui/Components/Icon.razor) renders a glyph by semantic name from
   [`Icons.cs`](src/RpgSceneMaker.Ui/Shared/Icons.cs) (tinted `currentColor`); user-picked scene/sound emoji
   stay content, and [`Glyph.razor`](src/RpgSceneMaker.Ui/Components/Glyph.razor) shows a user's emoji or falls
@@ -132,6 +137,15 @@ Running the API is enough to see the panel — it builds and serves the WASM ass
   bounded ring buffer of recent log entries, fed by `InMemoryLoggerProvider` (our logs at Information,
   everything else at Warning+) and surfaced by `/logs/list` + the panel's Logs tab. The error middleware
   logs every caught failure here.
+- **`LocaleService`** ([LocaleService.cs](src/RpgSceneMaker.Api/Services/LocaleService.cs)) — serves the
+  panel's **UI translations**. Each language is a JSON file (`<code>.json`, e.g. `en`/`pl`) in the on-disk
+  locales dir (`%LocalAppData%\RpgSceneMaker\locales\`, override `Locales:Path`), read on demand so a
+  community/agent edit needs no restart. `en.json`+`pl.json` also ship **embedded** in the assembly: seeded to
+  disk on first run (missing files only, never clobbering edits) and used as the ultimate fallback, so a
+  broken/deleted file can't blank the UI. `/i18n/*` ([LocaleEndpoints.cs](src/RpgSceneMaker.Api/Endpoints/LocaleEndpoints.cs))
+  covers `list` and `{code}` (GET only); like `/screens` there is nothing at bare `/i18n`. The panel's
+  `Localizer` fetches English + the active language and falls back to English per missing key. Server-side
+  error/validation messages are **not** localized (still English).
 - **`SceneStore` / `SettingsStore`** — persistence (see below).
 - **`AiToolService`** ([AiToolService.cs](src/RpgSceneMaker.Api/Services/Ai/AiToolService.cs)) — the shared
   AI **tool façade** (a singleton) behind both AI surfaces (MCP + the assistant): full CRUD + live control
@@ -179,7 +193,7 @@ Running the API is enough to see the panel — it builds and serves the WASM ass
   When adding a new failure mode, throw a meaningful exception and add a `switch` arm there rather than
   returning ad-hoc error bodies.
 - **Optional API key**: when `Security:ApiKey` is set, `/scenes /lights /music /sounds /events /screens
-  /lightfx /images /setup /logs /diagnostics /mcp /assistant` require it (`X-Api-Key` header or `?apiKey=`;
+  /lightfx /images /setup /logs /diagnostics /mcp /assistant /i18n` require it (`X-Api-Key` header or `?apiKey=`;
   the Spotify OAuth callback is exempt). The panel stores it in browser localStorage. Keep new protected
   prefixes in `IsProtectedPath` in [Program.cs](src/RpgSceneMaker.Api/Program.cs).
 - **DTOs are duplicated**, not shared: the API's wire DTOs live in `Contracts/` and the UI keeps its own
@@ -203,7 +217,8 @@ Sound-effect **audio files** live on disk, not in the DB, at `%LocalAppData%\Rpg
 (override with `Sounds:Path`); each `Sound` row references its file by name via `SoundFileStorage`.
 `Scene.SoundEffects` (a `List<string>` JSON column) holds the ids of sounds a scene fires on activation.
 
-`appsettings.json` holds deployment config only: `Urls`, `Security:ApiKey`, `Database:Path`, `Sounds:Path`.
+`appsettings.json` holds deployment config only: `Urls`, `Security:ApiKey`, `Database:Path`, `Sounds:Path`,
+`Locales:Path`.
 
 ### Changing the schema — create a migration
 

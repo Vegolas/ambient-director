@@ -5,17 +5,18 @@
    Keyframes are laid out as markers along a time track (tap a marker to select it); only the selected
    keyframe's editor is shown below, so a long sequence stays compact instead of stacking a card per frame.
    iPad-first: generous touch targets, prev/next steppers reach frames whose markers overlap, no hover-only affordances. *@
+@inject Localizer L
 
 <div class="kf-editor">
     <div class="kf-toolbar">
-        <button class="btn btn--small" @onclick="AddKeyframe"><Icon Name="add" /> Add keyframe</button>
+        <button class="btn btn--small" @onclick="AddKeyframe"><Icon Name="add" /> @L["keyframe.add"]</button>
         <span class="kf-spacer"></span>
-        <span class="hint" style="margin:0">@Effect.Keyframes.Count keyframe@(Effect.Keyframes.Count == 1 ? "" : "s")</span>
+        <span class="hint" style="margin:0">@L.Plural("keyframe.count", Effect.Keyframes.Count)</span>
     </div>
 
     @if (Effect.Keyframes.Count == 0)
     {
-        <p class="hint" style="margin:0.4rem 0">No keyframes yet — add one to build the sequence.</p>
+        <p class="hint" style="margin:0.4rem 0">@L["keyframe.empty"]</p>
     }
     else
     {
@@ -25,17 +26,17 @@
             {
                 <button type="button" class="kf-marker @(kf.Uid == _selUid ? "sel" : "")" @key="kf.Uid"
                         style="left:@(Pct(kf))%" @onclick="() => Select(kf)"
-                        title="Keyframe #@(i + 1) · @Sec(kf.AtMs)s" aria-label="Select keyframe @(i + 1)">
+                        title='@L.Format("keyframe.markerTitle", i + 1, Sec(kf.AtMs))' aria-label='@L.Format("keyframe.selectAria", i + 1)'>
                     <span class="kf-marker-head mode-@kf.Mode" style="@HeadStyle(kf)"></span>
                     <span class="kf-marker-num">@(i + 1)</span>
                 </button>
             }
         </div>
         <div class="kf-track-ends">
-            <span>0s</span>
+            <span>@L.Format("keyframe.sec", "0")</span>
             @if (LastAt > 0)
             {
-                <span>@Sec(LastAt)s</span>
+                <span>@L.Format("keyframe.sec", Sec(LastAt))</span>
             }
         </div>
     }
@@ -47,19 +48,19 @@
         <div class="kf-card">
             <div class="kf-insp-head">
                 <div class="kf-steppers">
-                    <button class="btn btn--small" @onclick="SelectPrev" disabled="@(idx <= 0)" title="Previous keyframe" aria-label="Previous keyframe"><Icon Name="step-prev" /></button>
+                    <button class="btn btn--small" @onclick="SelectPrev" disabled="@(idx <= 0)" title='@L["keyframe.prevAria"]' aria-label='@L["keyframe.prevAria"]'><Icon Name="step-prev" /></button>
                     <span class="kf-num">#@(idx + 1) / @count</span>
-                    <button class="btn btn--small" @onclick="SelectNext" disabled="@(idx >= count - 1)" title="Next keyframe" aria-label="Next keyframe"><Icon Name="step-next" /></button>
+                    <button class="btn btn--small" @onclick="SelectNext" disabled="@(idx >= count - 1)" title='@L["keyframe.nextAria"]' aria-label='@L["keyframe.nextAria"]'><Icon Name="step-next" /></button>
                 </div>
                 <span class="kf-spacer"></span>
-                <button class="btn btn--small" @onclick="() => Duplicate(sel)" title="Duplicate keyframe" aria-label="Duplicate keyframe"><Icon Name="duplicate" /></button>
-                <button class="btn btn--small btn--danger" @onclick="() => Remove(sel)" title="Delete keyframe" aria-label="Delete keyframe"><Icon Name="close" /></button>
+                <button class="btn btn--small" @onclick="() => Duplicate(sel)" title='@L["keyframe.duplicateAria"]' aria-label='@L["keyframe.duplicateAria"]'><Icon Name="duplicate" /></button>
+                <button class="btn btn--small btn--danger" @onclick="() => Remove(sel)" title='@L["keyframe.deleteAria"]' aria-label='@L["keyframe.deleteAria"]'><Icon Name="close" /></button>
             </div>
 
             <div class="tl-insp-row">
-                <label>Time</label>
-                <input type="number" min="0" step="0.1" value="@Sec(sel.AtMs)" @onchange="e => SetAt(sel, e)" aria-label="Keyframe time" />
-                <span class="tl-unit">s</span>
+                <label>@L["keyframe.time"]</label>
+                <input type="number" min="0" step="0.1" value="@Sec(sel.AtMs)" @onchange="e => SetAt(sel, e)" aria-label='@L["keyframe.timeAria"]' />
+                <span class="tl-unit">@L["common.secondsShort"]</span>
             </div>
 
             <Segmented TValue="string" Options="ModeOptions" Value="sel.Mode" ValueChanged="m => sel.Mode = m" />
@@ -67,45 +68,45 @@
             @if (sel.Mode == "color")
             {
                 <SwatchGrid Selected="sel.Color" OnPick="hex => sel.Color = hex" Style="margin-top:0.8rem" />
-                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="sel.Brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="sel.Brightness" AriaLabel='@L["keyframe.brightnessAria"]' />
             }
             else if (sel.Mode == "white")
             {
-                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="sel.Temperature" AriaLabel="Color temperature" />
-                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="sel.Brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="sel.Temperature" AriaLabel='@L["keyframe.colorTempAria"]' />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="sel.Brightness" AriaLabel='@L["keyframe.brightnessAria"]' />
             }
             else
             {
-                <p class="hint" style="margin-top:0.6rem">This keyframe switches the light off.</p>
+                <p class="hint" style="margin-top:0.6rem">@L["keyframe.offHint"]</p>
             }
 
             <div class="tl-insp-row" style="margin-top:0.6rem">
-                <label>Fade</label>
+                <label>@L["keyframe.fade"]</label>
                 <select value="@(sel.TransitionMs?.ToString() ?? "")" @onchange="e => SetTransition(sel, e)">
-                    <option value="">Default</option>
-                    <option value="0">Instant</option>
+                    <option value="">@L["keyframe.fadeDefault"]</option>
+                    <option value="0">@L["keyframe.fadeInstant"]</option>
                     <option value="100">100 ms</option>
                     <option value="400">400 ms</option>
                     <option value="1000">1000 ms</option>
                     @if (sel.TransitionMs is { } t && t is not (0 or 100 or 400 or 1000))
                     {
-                        <option value="@t">@t ms</option>
+                        <option value="@t">@L.Format("keyframe.fadeMs", t)</option>
                     }
                 </select>
-                <span class="tl-unit">Hue only</span>
+                <span class="tl-unit">@L["keyframe.hueOnly"]</span>
             </div>
         </div>
     }
 
     @* Loop toggle + its cycle length share one row; the cycle field appears beside the chip when looping. *@
     <div class="tl-insp-inline">
-        <Chip On="Effect.Loop" OnClick="ToggleLoop"><Icon Name="repeat" /> Loop</Chip>
+        <Chip On="Effect.Loop" OnClick="ToggleLoop"><Icon Name="repeat" /> @L["common.loop"]</Chip>
         @if (Effect.Loop)
         {
             <div class="tl-fld">
-                <label>Cycle</label>
-                <input type="number" min="0.1" step="0.1" value="@Sec(Effect.CycleMs ?? DefaultCycleMs)" @onchange="SetCycle" aria-label="Cycle length" />
-                <span class="tl-unit">s repeat</span>
+                <label>@L["keyframe.cycle"]</label>
+                <input type="number" min="0.1" step="0.1" value="@Sec(Effect.CycleMs ?? DefaultCycleMs)" @onchange="SetCycle" aria-label='@L["keyframe.cycleAria"]' />
+                <span class="tl-unit">@L["keyframe.sRepeat"]</span>
             </div>
         }
     </div>
@@ -114,23 +115,24 @@
     {
         @if (CycleTooShort)
         {
-            <p class="hint" style="margin-top:0.4rem"><Icon Name="warn" /> Cycle must be at least @Sec(MinCycleMs)s (100 ms past the last keyframe).</p>
+            <p class="hint" style="margin-top:0.4rem"><Icon Name="warn" /> @L.Format("keyframe.cycleTooShort", Sec(MinCycleMs))</p>
         }
         else
         {
-            <p class="hint" style="margin-top:0.4rem">Repeats the sequence every @Sec(Effect.CycleMs ?? DefaultCycleMs)s.</p>
+            <p class="hint" style="margin-top:0.4rem">@L.Format("keyframe.repeatsEvery", Sec(Effect.CycleMs ?? DefaultCycleMs))</p>
         }
     }
     else
     {
-        <p class="hint" style="margin-top:0.4rem">Plays once, then holds the last keyframe.</p>
+        <p class="hint" style="margin-top:0.4rem">@L["keyframe.playsOnce"]</p>
     }
 </div>
 
 @code {
     [Parameter, EditorRequired] public EffectEdit Effect { get; set; } = new();
 
-    private static readonly (string, string)[] ModeOptions = [("color", "Color"), ("white", "White"), ("off", "Off")];
+    private (string, string)[] ModeOptions =>
+        [("color", L["common.modeColor"]), ("white", L["common.modeWhite"]), ("off", L["common.modeOff"])];
 
     private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
 
