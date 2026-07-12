@@ -1,5 +1,6 @@
 @page "/event-editor"
 @page "/event-editor/{EventId}"
+@using System.Text.Json
 @implements IDisposable
 @inject ApiClient Api
 @inject UiState Ui
@@ -22,6 +23,11 @@ else
             <button class="btn" @onclick="AskAssistant"><Icon Name="assistant" /> @L["assistant.ask"]</button>
         }
     </div>
+
+    @if (_drawerOpen)
+    {
+        <AssistantDrawer InitialDraft="@AssistantDraft" OnRunCompleted="RefreshFromAssistantAsync" OnClose="() => _drawerOpen = false" />
+    }
 
     <div class="panel">
         <div class="emoji-row">
@@ -132,6 +138,11 @@ else
     private Timer? _timer;
     private bool _confirmDelete;
 
+    // assistant drawer + real-time refresh
+    private bool _drawerOpen;
+    private string? _snapshot;
+    private string AssistantDraft => L.Format("assistant.ctxDraft.event", _edit.Id);
+
     protected override async Task OnInitializedAsync()
     {
         _isNew = string.IsNullOrEmpty(EventId);
@@ -158,6 +169,7 @@ else
                 return;
             }
             LoadFrom(evt);
+            _snapshot = JsonSerializer.Serialize(evt);
         }
 
         await PollAsync();
@@ -181,7 +193,32 @@ else
         }
     }
 
-    private Task AskAssistant() => Vt.NavigateAsync($"assistant?ctx=event:{Uri.EscapeDataString(_edit.Id)}");
+    // Open the in-editor assistant drawer (no navigation). Gated on !_isNew, so _edit.Id is always set.
+    private void AskAssistant() => _drawerOpen = true;
+
+    // Fired when an assistant run finishes: re-fetch the event, navigate away if it was deleted, else
+    // re-apply it to the form when it changed since we last loaded/saved. Accepted v1 tradeoff: unsaved
+    // local edits are overwritten (the user explicitly asked the assistant to edit this event).
+    private async Task RefreshFromAssistantAsync()
+    {
+        if (_isNew || string.IsNullOrEmpty(_edit.Id)) return;
+
+        var evt = await Api.GetEventAsync(_edit.Id);
+        if (evt is null)
+        {
+            Ui.ReportOk(L["assistant.toast.entityDeleted"]);
+            await Vt.NavigateAsync("events");
+            return;
+        }
+
+        var json = JsonSerializer.Serialize(evt);
+        if (json == _snapshot) return;
+
+        _snapshot = json;
+        LoadFrom(evt);
+        Ui.ReportOk(L["assistant.toast.entityUpdated"]);
+        StateHasChanged();
+    }
 
     private void ToggleEmoji(string e) => _emoji = _emoji == e ? "" : e;
 
@@ -265,6 +302,10 @@ else
                 // On create, keep editing the freshly-made event rather than re-creating it.
                 if (_isNew)
                     await Vt.NavigateAsync($"event-editor/{id}");
+                // Staying on the page: refresh the snapshot so a later assistant refresh compares against
+                // what we just saved and doesn't spuriously re-apply.
+                else if (await Api.GetEventAsync(id) is { } saved)
+                    _snapshot = JsonSerializer.Serialize(saved);
             }
             else
             {

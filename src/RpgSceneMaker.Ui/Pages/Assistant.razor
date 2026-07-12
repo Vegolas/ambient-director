@@ -1,122 +1,48 @@
 @page "/assistant"
-@implements IDisposable
-@inject ApiClient Api
-@inject UiState Ui
-@inject NavigationManager Nav
-@inject IJSRuntime JS
 @inject Localizer L
 
 <PageTitle>Scene Maker — @L["assistant.title"]</PageTitle>
 
 <div class="page-head"><h1>@L["assistant.title"]</h1></div>
 
-@if (!_loaded)
-{
-    <p class="empty-note">@L["assistant.loading"]</p>
-}
-else if (!_configured)
-{
-    <div class="panel">
-        <p class="hint" style="margin-top:0">@L["assistant.noKeyNotice"]</p>
-        <div class="btn-row">
-            <button class="btn btn--primary" @onclick='() => Nav.NavigateTo("settings")'>@L["assistant.openSettings"]</button>
-        </div>
-    </div>
-}
-else
-{
-    <div class="chat">
-        <div class="chat-log">
-            @if (_entries.Count == 0)
-            {
-                <p class="empty-note">@L["assistant.emptyPrompt"]</p>
-            }
-            @foreach (var e in _entries)
-            {
-                @switch (e.Kind)
-                {
-                    case "user":
-                        <div class="chat-msg chat-msg--user"><div class="chat-bubble chat-bubble--user">@e.Text</div></div>
-                        break;
-                    case "assistant":
-                        <div class="chat-msg chat-msg--assistant"><div class="chat-bubble chat-bubble--assistant">@e.Text</div></div>
-                        break;
-                    case "tool":
-                        <div class="chat-tool @(e.ToolIsError == true ? "chat-tool--error" : "")">
-                            <span class="chat-tool-ico">⚙</span>
-                            <span class="chat-tool-name">@e.ToolName</span>
-                            <span class="chat-tool-result">@Truncate(string.IsNullOrEmpty(e.Text) ? e.ToolResult : e.Text)</span>
-                        </div>
-                        break;
-                    default: // "error"
-                        <div class="chat-tool chat-tool--error">
-                            <span class="chat-tool-ico">⚠️</span>
-                            <span class="chat-tool-result">@e.Text</span>
-                        </div>
-                        break;
-                }
-            }
-            @if (_busy)
-            {
-                <div class="chat-thinking"><span class="chat-thinking-dot"></span>@L["assistant.thinking"]</div>
-            }
-        </div>
-
-        <div class="chat-composer">
-            <textarea class="chat-input" rows="2" placeholder='@L["assistant.placeholder"]'
-                      @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown"
-                      disabled="@_busy"></textarea>
-            <div class="chat-actions">
-                @if (_busy)
-                {
-                    <button class="btn btn--danger" @onclick="StopAsync">@L["common.stop"]</button>
-                }
-                else
-                {
-                    <button class="btn btn--primary" @onclick="SendAsync"
-                            disabled="@string.IsNullOrWhiteSpace(_input)">@L["assistant.send"]</button>
-                }
-                <button class="btn" @onclick="ClearAsync" disabled="@_busy">@L["assistant.clear"]</button>
+@* Thin host over the shared chat surface. The chat owns polling/state; this page keeps the route,
+   the ctx deep-link pre-fill and the "no API key" panel (still handy for bookmarks — an editor's
+   "Ask the assistant" button now opens the in-editor drawer instead of navigating here). *@
+<AssistantChat InitialDraft="@_draft">
+    <NotConfigured>
+        <div class="panel">
+            <p class="hint" style="margin-top:0">@L["assistant.noKeyNotice"]</p>
+            <div class="btn-row">
+                <button class="btn btn--primary" @onclick='() => Nav.NavigateTo("settings")'>@L["assistant.openSettings"]</button>
             </div>
         </div>
-    </div>
-}
+    </NotConfigured>
+</AssistantChat>
 
 @code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
     [Parameter]
     [SupplyParameterFromQuery(Name = "ctx")]
     public string? Ctx { get; set; }
 
-    private readonly List<AssistantEntryDto> _entries = [];
-    private string _input = "";
-    private long _rev;
-    private bool _busy;
-    private bool _configured;
-    private bool _loaded;
-    private Timer? _timer;
+    private string? _draft;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await PollAsync();
-        _loaded = true;
-        PrefillFromContext();
-        StateHasChanged();
-        _timer = new Timer(_ => _ = InvokeAsync(PollAsync), null, 1000, 1000);
-    }
+    protected override void OnInitialized() => _draft = DraftFromContext();
 
-    // An editor's "Ask the assistant" button navigates here with ?ctx=<kind>:<id>. Seed the composer
-    // with an editable draft naming the entity so the assistant (via its get_* tools) can read it; the
-    // user confirms/edits before sending. Malformed or unknown ctx is silently ignored.
-    private void PrefillFromContext()
+    // An editor's deep link arrives as ?ctx=<kind>:<id>. Build an editable draft naming the entity so
+    // the assistant (via its get_* tools) can read it; the user confirms/edits before sending. Malformed
+    // or unknown ctx yields no draft.
+    private string? DraftFromContext()
     {
-        if (!string.IsNullOrWhiteSpace(_input) || string.IsNullOrEmpty(Ctx)) return;
+        if (string.IsNullOrEmpty(Ctx)) return null;
 
         var sep = Ctx.IndexOf(':');
-        if (sep <= 0 || sep == Ctx.Length - 1) return;
+        if (sep <= 0 || sep == Ctx.Length - 1) return null;
 
         var kind = Ctx[..sep];
         var id = Uri.UnescapeDataString(Ctx[(sep + 1)..]);
-        if (string.IsNullOrWhiteSpace(id)) return;
+        if (string.IsNullOrWhiteSpace(id)) return null;
 
         var key = kind switch
         {
@@ -125,84 +51,6 @@ else
             "effect" => "assistant.ctxDraft.effect",
             _ => null,
         };
-        if (key is null) return;
-
-        _input = L.Format(key, id);
+        return key is null ? null : L.Format(key, id);
     }
-
-    private async Task PollAsync()
-    {
-        var state = await Api.GetAssistantStateAsync(_rev);
-        if (state is null) return; // transport hiccup — the poll just flipped the connection dot
-
-        var changed = state.Busy != _busy || state.Configured != _configured;
-        _busy = state.Busy;
-        _configured = state.Configured;
-
-        var grew = false;
-        if (state.Entries is not null)
-        {
-            _entries.Clear();
-            _entries.AddRange(state.Entries);
-            _rev = state.Rev;
-            changed = true;
-            grew = true;
-        }
-
-        if (changed) StateHasChanged();
-        if (grew) await ScrollToBottomAsync();
-    }
-
-    private async Task SendAsync()
-    {
-        var text = _input.Trim();
-        if (_busy || text.Length == 0) return;
-        _input = "";
-        var (ok, error) = await Api.SendAssistantMessageAsync(text);
-        if (!ok)
-        {
-            Ui.ReportError(error ?? L["assistant.toast.sendFailed"]);
-            return;
-        }
-        await PollAsync(); // reflect the queued message + busy state without waiting for the next tick
-    }
-
-    // Enter sends; Shift+Enter inserts a newline. The bound value is cleared on send, so any stray newline
-    // the keypress leaves behind is discarded on the next render.
-    private async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !e.ShiftKey)
-            await SendAsync();
-    }
-
-    private async Task StopAsync()
-    {
-        await Api.StopAssistantAsync();
-        await PollAsync();
-    }
-
-    private async Task ClearAsync()
-    {
-        if (await Api.ClearAssistantAsync())
-        {
-            _rev = 0; // force the next poll to return the (now empty) full snapshot
-            await PollAsync();
-        }
-    }
-
-    private static string Truncate(string? s, int max = 160)
-    {
-        if (string.IsNullOrEmpty(s)) return "";
-        s = s.Replace('\n', ' ').Replace('\r', ' ');
-        return s.Length <= max ? s : s[..max] + "…";
-    }
-
-    // Scroll the window to the bottom so the newest message is visible. Uses the browser's built-in
-    // window.scrollTo (no interop file needed); best-effort, so a failure never breaks the poll.
-    private async Task ScrollToBottomAsync()
-    {
-        try { await JS.InvokeVoidAsync("scrollTo", 0, 1_000_000); } catch { /* best effort */ }
-    }
-
-    public void Dispose() => _timer?.Dispose();
 }
