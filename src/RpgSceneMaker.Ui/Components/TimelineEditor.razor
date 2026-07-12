@@ -6,11 +6,11 @@
 
 <div class="tl-toolbar">
     <div class="tl-zoom">
-        <button class="btn btn--small" @onclick="ZoomOut" disabled="@(_pps <= MinPps)" aria-label="Zoom out">➖</button>
-        <button class="btn btn--small" @onclick="ZoomIn" disabled="@(_pps >= MaxPps)" aria-label="Zoom in">➕</button>
+        <button class="btn btn--small" @onclick="ZoomOut" disabled="@(_pps <= MinPps)" aria-label="Zoom out"><Icon Name="zoom-out" /></button>
+        <button class="btn btn--small" @onclick="ZoomIn" disabled="@(_pps >= MaxPps)" aria-label="Zoom in"><Icon Name="zoom-in" /></button>
         <button class="btn btn--small" @onclick="FitAsync">Fit</button>
     </div>
-    <span class="tl-total">@FormatSeconds(Model.EndMs) total@(OverLimit ? " ⚠ over 10 min" : "")</span>
+    <span class="tl-total">@FormatSeconds(Model.EndMs) total@if (OverLimit) {<text> </text><Icon Name="warn" /><text> over 10 min</text>}</span>
 </div>
 
 <div class="tl-root" data-pps="@_pps" @ref="_rootEl">
@@ -27,7 +27,7 @@
             </div>
 
             @* --- sounds --- *@
-            <div class="tl-group-label">🔊 Sounds</div>
+            <div class="tl-group-label"><Icon Name="sounds" /> Sounds</div>
             @if (Model.Sounds.Count == 0)
             {
                 <div class="tl-lane empty"><span class="tl-lane-empty">No sound clips — add one below.</span></div>
@@ -58,7 +58,7 @@
             }
 
             @* --- lights --- *@
-            <div class="tl-group-label">💡 Lights</div>
+            <div class="tl-group-label"><Icon Name="lights" /> Lights</div>
             @if (Model.Lights.Count == 0)
             {
                 <div class="tl-lane empty"><span class="tl-lane-empty">No light clips — add one below.</span></div>
@@ -89,8 +89,8 @@
 </div>
 
 <div class="btn-row" style="margin-top:0.8rem">
-    <button class="btn btn--small" @onclick="ToggleSoundPicker">＋ Add sound</button>
-    <button class="btn btn--small" @onclick="AddLight">＋ Add light</button>
+    <button class="btn btn--small" @onclick="ToggleSoundPicker"><Icon Name="add" /> Add sound</button>
+    <button class="btn btn--small" @onclick="AddLight"><Icon Name="add" /> Add light</button>
 </div>
 
 @if (_soundPickerOpen)
@@ -108,7 +108,7 @@
                 <div class="klist">
                     @foreach (var sound in group)
                     {
-                        <KRow Icon="@(sound.Loop ? "🔁" : "🔊")" Title="@sound.Name"
+                        <KRow IconName="@(sound.Loop ? "repeat" : "sounds")" Title="@sound.Name"
                               Hint="@(sound.NaturalMs is { } d ? FormatSeconds(d) : "unknown length")"
                               OnClick="() => AddSound(sound)" />
                     }
@@ -123,7 +123,7 @@
 {
     <div class="panel tl-inspector">
         <div class="tl-insp-head">
-            <span class="tl-insp-title">🔊 @SoundName(sc.SoundId)</span>
+            <span class="tl-insp-title"><Icon Name="sounds" /> @SoundName(sc.SoundId)</span>
             <button class="btn btn--small btn--danger" @onclick="() => DeleteSound(sc)">Delete clip</button>
         </div>
 
@@ -144,7 +144,7 @@
             }
             else if (isLoop)
             {
-                <span class="tl-unit">🔁 until stopped</span>
+                <span class="tl-unit"><Icon Name="repeat" /> until stopped</span>
             }
             else
             {
@@ -158,24 +158,24 @@
         </div>
         @if (sc.Volume is not null)
         {
-            <SliderRow LeftIcon="🔉" Min="0" Max="100" Suffix="%" Value="@VolPct(sc)" ValueChanged="v => SetSoundVolume(sc, v)" AriaLabel="Clip volume" />
+            <SliderRow LeftIcon="volume" Min="0" Max="100" Suffix="%" Value="@VolPct(sc)" ValueChanged="v => SetSoundVolume(sc, v)" AriaLabel="Clip volume" />
         }
 
         @if (sc.DurationMs is { } dur && natural is { } nat && !isLoop && dur < nat)
         {
-            <p class="hint" style="margin-top:0.6rem">✂ Cut short: plays @FormatSeconds(dur) of the sound's ~@FormatSeconds(nat).</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="cut" /> Cut short: plays @FormatSeconds(dur) of the sound's ~@FormatSeconds(nat).</p>
         }
         else if (sc.DurationMs is { } dl && isLoop)
         {
-            <p class="hint" style="margin-top:0.6rem">🔁 Looping sound — repeats to fill @FormatSeconds(dl).</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> Looping sound — repeats to fill @FormatSeconds(dl).</p>
         }
         else if (sc.DurationMs is null && isLoop)
         {
-            <p class="hint" style="margin-top:0.6rem">🔁 Loops until the event is stopped.</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="repeat" /> Loops until the event is stopped.</p>
         }
         @if (!SoundKnown(sc.SoundId))
         {
-            <p class="hint" style="margin-top:0.6rem">⚠️ This sound is no longer in your library.</p>
+            <p class="hint" style="margin-top:0.6rem"><Icon Name="warn" /> This sound is no longer in your library.</p>
         }
     </div>
 }
@@ -183,7 +183,7 @@ else if (SelectedLight is { } lc)
 {
     <div class="panel tl-inspector">
         <div class="tl-insp-head">
-            <span class="tl-insp-title">💡 @LightName(lc.LightKey)</span>
+            <span class="tl-insp-title"><Icon Name="lights" /> @LightName(lc.LightKey)</span>
             <button class="btn btn--small btn--danger" @onclick="() => DeleteLight(lc)">Delete clip</button>
         </div>
 
@@ -210,7 +210,7 @@ else if (SelectedLight is { } lc)
             <div class="chip-row">
                 @foreach (var (type, label) in Palette.Effects)
                 {
-                    <Chip On="lc.Effect.Type == type" OnClick="() => lc.Effect.Type = type">@label</Chip>
+                    <Chip On="lc.Effect.Type == type" OnClick="() => lc.Effect.Type = type">@if (Palette.EffectIcon(type) is { Length: > 0 } ic) { <Icon Name="@ic" /> }@label</Chip>
                 }
             </div>
 
@@ -221,21 +221,21 @@ else if (SelectedLight is { } lc)
                 @if (lc.Mode == "color")
                 {
                     <SwatchGrid Selected="lc.Color" OnPick="hex => lc.Color = hex" Style="margin-top:1rem" />
-                    <SliderRow LeftIcon="🔅" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
                 }
                 else
                 {
-                    <SliderRow LeftIcon="🕯️" RightIcon="❄️" Min="0" Max="100" @bind-Value="lc.Temperature" AriaLabel="Color temperature" />
-                    <SliderRow LeftIcon="🔅" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                    <SliderRow LeftIcon="warm" RightIcon="cold" Min="0" Max="100" @bind-Value="lc.Temperature" AriaLabel="Color temperature" />
+                    <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
                 }
                 @if (lc.Effect.Type != "none")
                 {
-                    <p class="hint" style="margin-top:0.6rem">✨ The effect animates from this base @(lc.Mode == "color" ? "color" : "white tone") and brightness.</p>
+                    <p class="hint" style="margin-top:0.6rem"><Icon Name="effects" /> The effect animates from this base @(lc.Mode == "color" ? "color" : "white tone") and brightness.</p>
                 }
             }
             else if (Palette.EffectUsesBaseBrightness(lc.Effect.Type))
             {
-                <SliderRow LeftIcon="🔅" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
+                <SliderRow LeftIcon="dim" Min="1" Max="100" Suffix="%" @bind-Value="lc.Brightness" AriaLabel="Brightness" />
             }
 
             @if (lc.Effect.Type == "custom")
@@ -244,8 +244,8 @@ else if (SelectedLight is { } lc)
             }
             else if (lc.Effect.Type is not ("none" or "fx"))
             {
-                <SliderRow LeftIcon="🏃" Min="1" Max="10" @bind-Value="lc.Effect.Speed" AriaLabel="Speed" />
-                <SliderRow LeftIcon="🔆" Min="1" Max="10" @bind-Value="lc.Effect.Intensity" AriaLabel="Intensity" />
+                <SliderRow LeftIcon="speed" Min="1" Max="10" @bind-Value="lc.Effect.Speed" AriaLabel="Speed" />
+                <SliderRow LeftIcon="bright" Min="1" Max="10" @bind-Value="lc.Effect.Intensity" AriaLabel="Intensity" />
                 @if (lc.Effect.Type == "drift")
                 {
                     <p class="hint" style="margin-top:0.6rem">Tap colors to build a palette (2–4). Drift blends between them.</p>
@@ -256,7 +256,7 @@ else if (SelectedLight is { } lc)
                             {
                                 <span class="pal-chip">
                                     <span class="pal-dot" style="background:@c"></span>@c.ToUpperInvariant()
-                                    <button class="pal-x" aria-label="Remove color" @onclick="() => lc.Effect.Colors.Remove(c)">✕</button>
+                                    <button class="pal-x" aria-label="Remove color" @onclick="() => lc.Effect.Colors.Remove(c)"><Icon Name="close" /></button>
                                 </span>
                             }
                         </div>
@@ -330,11 +330,11 @@ else if (SelectedLight is { } lc)
         return SoundNatural(s.SoundId) ?? DefaultSoundMs;
     }
 
-    // Time caption on a sound clip: explicit window, "🔁 until stopped" for an open-ended loop, else "→end".
+    // Time caption on a sound clip: explicit window, "until stopped" for an open-ended loop, else "→end".
     private string SoundClipTimeLabel(TimelineSoundEdit s, int displayMs)
     {
         if (s.DurationMs is { } d) return ClipTimeLabel(s.StartMs, d, false);
-        if (SoundLoop(s.SoundId)) return $"{Sec(s.StartMs)}s · 🔁 until stopped";
+        if (SoundLoop(s.SoundId)) return $"{Sec(s.StartMs)}s · until stopped";
         return ClipTimeLabel(s.StartMs, displayMs, true);
     }
 
