@@ -3,6 +3,7 @@ import { SceneMakerApi } from "./api";
 import { buildChip } from "./chip";
 import { livePreviewExtension } from "./livepreview";
 import { SceneMakerSuggest } from "./suggest";
+import { PANEL_VIEW_TYPE, PanelView } from "./panelview";
 import { DEFAULT_SETTINGS, SceneMakerSettingTab, SceneMakerSettings } from "./settings";
 import { StateTracker } from "./tracker";
 import { SmToken, parseToken, pathFor } from "./tokens";
@@ -32,6 +33,15 @@ export default class SceneMakerPlugin extends Plugin {
     // Authoring: autocomplete kinds and existing scene/event/sound ids.
     this.registerEditorSuggest(new SceneMakerSuggest(this.app, this));
 
+    // Control panel embedded in an Obsidian pane (drive scenes from the notes window).
+    this.registerView(PANEL_VIEW_TYPE, (leaf) => new PanelView(leaf, this));
+    this.addRibbonIcon("dice-6", "Open RPG Scene Maker panel", () => void this.activatePanel());
+    this.addCommand({
+      id: "open-panel",
+      name: "Open control panel",
+      callback: () => void this.activatePanel(),
+    });
+
     this.addCommand({
       id: "refresh-lists",
       name: "Refresh scene / event / sound lists",
@@ -40,6 +50,19 @@ export default class SceneMakerPlugin extends Plugin {
         new Notice("RPG Scene Maker: lists refreshed.");
       },
     });
+  }
+
+  /** Open (or reveal) the embedded control-panel pane. */
+  private async activatePanel(): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(PANEL_VIEW_TYPE);
+    if (existing.length > 0) {
+      workspace.revealLeaf(existing[0]);
+      return;
+    }
+    const leaf = workspace.getLeaf("tab");
+    await leaf.setViewState({ type: PANEL_VIEW_TYPE, active: true });
+    workspace.revealLeaf(leaf);
   }
 
   private renderReadingChips(el: HTMLElement, _ctx: MarkdownPostProcessorContext): void {

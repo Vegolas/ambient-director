@@ -23,6 +23,8 @@ turn hostile, `sm:event:alarm-bell`.
   with the art as the background.
 - **Live highlight**: a button shows a pulsing dot + accent ring while its scene/event/sound is
   active — even if you started it from the panel or a Stream Deck.
+- **Control panel in a pane**: open the whole app inside an Obsidian tab (ribbon dice icon or the
+  *Open control panel* command), so you can drive scenes from the same window as your notes.
 - Works in **Reading view** and **Live Preview**, on **desktop and mobile** (iPad) Obsidian.
 
 ## Syntax
@@ -76,6 +78,21 @@ Open *Settings → RPG Scene Maker* and set:
 
 Hit **Test** to confirm the connection. If ids change on the server, run the *Refresh scene /
 event / sound lists* command (or just wait — the list cache is short-lived).
+
+## Control panel in a pane
+
+Beyond the inline buttons, you can embed the whole control panel inside Obsidian: click the dice
+icon in the left ribbon (or run **Open control panel** from the command palette). It opens the app —
+pointed at your **Server address** — as a normal Obsidian tab you can split or drag beside your
+notes, so you can run scenes without leaving the window you prep in.
+
+The toolbar has **Reload** (after restarting the server) and **Open in browser** (pop out to the
+system browser). On the first load, enter your API key in the embedded panel's own ⚙ button if the
+server has one set — it's remembered per device, just like on the iPad.
+
+This is a **desktop** convenience (it uses an Electron web view). On mobile Obsidian it falls back to
+an `<iframe>`, which may not load a LAN http server reliably — on the iPad, run the panel as its
+[installed PWA](../../README.md#using-it-from-an-ipad-or-any-tabletphone) instead.
 
 ## Notes
 

@@ -133,6 +133,69 @@
   }
 }
 
+/* Embedded control-panel pane. */
+.sm-panel-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+
+.sm-panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+
+.sm-panel-title {
+  font-weight: 600;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.sm-panel-spacer {
+  flex: 1;
+}
+
+.sm-panel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.sm-panel-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.sm-panel-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.sm-panel-embed {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.sm-panel-empty {
+  padding: 1.5em;
+  color: var(--text-muted);
+}
+
 /* Autocomplete suggestion rows. */
 .sm-suggestion {
   display: flex;
