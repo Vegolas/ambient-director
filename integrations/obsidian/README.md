@@ -19,7 +19,10 @@ turn hostile, `sm:event:alarm-bell`.
 - **Autocomplete**: type `sm:` and it suggests the kinds; type `sm:scene:` and it suggests the
   scenes that actually exist on your server, with their name and tile art.
 - **Art & emoji**: a button shows the entity's uploaded tile art (or its leading emoji), pulled
-  live from the server.
+  live from the server. Two styles (a global setting): compact **chips**, or full-width **banners**
+  with the art as the background.
+- **Live highlight**: a button shows a pulsing dot + accent ring while its scene/event/sound is
+  active — even if you started it from the panel or a Stream Deck.
 - Works in **Reading view** and **Live Preview**, on **desktop and mobile** (iPad) Obsidian.
 
 ## Syntax
@@ -64,7 +67,12 @@ Open *Settings → RPG Scene Maker* and set:
   open the panel at). On the same machine as the server, `http://localhost:5252` works.
 - **API key** — only if you set `Security:ApiKey` on the server. It's stored in the vault's plugin
   data, **never** written into your notes, so it isn't exposed when notes sync.
-- **Show tile art** — toggle thumbnails on the buttons.
+- **Button style** — *Chip* (compact inline button) or *Banner* (a full-width bar with the tile art
+  as its background; best when the token sits on its own line). Global — reopen a note to apply it.
+- **Show tile art** — show an entity's art on its button (a thumbnail on a chip, the background on a
+  banner), falling back to its emoji.
+- **Highlight what's live** — poll the server and mark a button with a pulsing dot + accent ring
+  while its scene/event/sound is active, even if it was started from the panel or a Stream Deck.
 
 Hit **Test** to confirm the connection. If ids change on the server, run the *Refresh scene /
 event / sound lists* command (or just wait — the list cache is short-lived).

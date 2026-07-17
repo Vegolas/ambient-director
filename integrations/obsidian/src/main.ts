@@ -4,15 +4,22 @@ import { buildChip } from "./chip";
 import { livePreviewExtension } from "./livepreview";
 import { SceneMakerSuggest } from "./suggest";
 import { DEFAULT_SETTINGS, SceneMakerSettingTab, SceneMakerSettings } from "./settings";
+import { StateTracker } from "./tracker";
 import { SmToken, parseToken, pathFor } from "./tokens";
+
+/** How often to poll the server for live active state (ms), while chips are on screen. */
+const POLL_INTERVAL_MS = 4000;
 
 export default class SceneMakerPlugin extends Plugin {
   settings!: SceneMakerSettings;
   api!: SceneMakerApi;
+  tracker!: StateTracker;
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.api = new SceneMakerApi(() => ({ baseUrl: this.settings.baseUrl, apiKey: this.settings.apiKey }));
+    this.tracker = new StateTracker(this);
+    this.registerInterval(window.setInterval(() => void this.tracker.tick(), POLL_INTERVAL_MS));
 
     this.addSettingTab(new SceneMakerSettingTab(this.app, this));
 
@@ -49,8 +56,13 @@ export default class SceneMakerPlugin extends Plugin {
   async fire(token: SmToken): Promise<void> {
     const name = token.label ?? token.arg ?? token.kind;
     const res = await this.api.fire(pathFor(token));
-    if (res.ok) new Notice(`▶ ${name}`);
-    else new Notice(`⚠ ${name}: ${res.message ?? "failed"}`);
+    if (res.ok) {
+      new Notice(`▶ ${name}`);
+      // Reflect the change quickly instead of waiting for the next poll tick.
+      window.setTimeout(() => void this.tracker.refresh(), 400);
+    } else {
+      new Notice(`⚠ ${name}: ${res.message ?? "failed"}`);
+    }
   }
 
   async loadSettings(): Promise<void> {

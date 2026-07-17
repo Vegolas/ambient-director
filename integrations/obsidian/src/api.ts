@@ -16,6 +16,13 @@ export interface FireResult {
   message?: string;
 }
 
+/** Live "what's on right now" snapshot, used to highlight active buttons. */
+export interface LiveState {
+  activeScene: string;
+  runningEvent: string;
+  playingSounds: string[];
+}
+
 interface ApiSettings {
   baseUrl: string;
   apiKey: string;
@@ -88,6 +95,33 @@ export class SceneMakerApi {
       return items;
     } catch {
       return cached?.items ?? [];
+    }
+  }
+
+  /** Fetch the live active-scene / running-event / playing-sounds snapshot. Never throws. */
+  async getLiveState(): Promise<LiveState> {
+    const empty: LiveState = { activeScene: "", runningEvent: "", playingSounds: [] };
+    if (!this.base()) return empty;
+    const [scene, event, sounds] = await Promise.all([
+      this.getJson("/scenes/active"),
+      this.getJson("/events/state"),
+      this.getJson("/sounds/state"),
+    ]);
+    const playing = (sounds as { playing?: unknown })?.playing;
+    return {
+      activeScene: String((scene as { id?: unknown })?.id ?? ""),
+      runningEvent: String((event as { runningId?: unknown })?.runningId ?? ""),
+      playingSounds: Array.isArray(playing) ? playing.map((x) => String(x)) : [],
+    };
+  }
+
+  private async getJson(path: string): Promise<unknown> {
+    try {
+      const res = await requestUrl({ url: this.base() + path, method: "GET", headers: this.headers(), throw: false });
+      if (res.status < 200 || res.status >= 300) return null;
+      return res.json;
+    } catch {
+      return null;
     }
   }
 
