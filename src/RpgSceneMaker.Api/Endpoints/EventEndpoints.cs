@@ -1,4 +1,5 @@
 using RpgSceneMaker.Api.Contracts;
+using RpgSceneMaker.Api.Errors;
 using RpgSceneMaker.Api.Models;
 using RpgSceneMaker.Api.Services;
 using RpgSceneMaker.Api.Validation;
@@ -54,7 +55,7 @@ public static class EventEndpoints
             async (string id, EventStore store, EventActivator activator) =>
         {
             if (await store.GetAsync(id) is not { } evt)
-                return Results.NotFound(new { error = $"No event with id '{id}'. See GET /events/list." });
+                throw new NotFoundException("error.event.notFound", id);
 
             var result = await activator.TriggerAsync(evt);
             return Results.Json(result, statusCode: result.FullySucceeded ? 200 : 207);

@@ -1,4 +1,5 @@
 using RpgSceneMaker.Api.Contracts;
+using RpgSceneMaker.Api.Errors;
 using RpgSceneMaker.Api.Services.Ai;
 
 namespace RpgSceneMaker.Api.Endpoints;
@@ -11,13 +12,15 @@ public static class AssistantEndpoints
         // full-page load of /assistant must fall through to index.html (same reason /events uses /events/list).
         var assistant = app.MapGroup("/assistant");
 
-        // Queue a message and start a run. 202 when accepted; 409 when a run is already in progress. A blank
-        // message (ArgumentException → 400) or an unset key (InvalidOperationException → 503 "Not configured")
-        // are mapped by the Program.cs error middleware.
+        // Queue a message and start a run. 202 when accepted; a run already in progress throws
+        // ConflictException → 409. A blank message (ArgumentException → 400) or an unset key
+        // (InvalidOperationException → 503 "Not configured") are mapped by the Program.cs error middleware too.
         assistant.MapPost("/send", (AssistantSendInput input, AssistantService svc) =>
-            svc.TrySend(input.Text)
-                ? Results.Accepted(value: new { accepted = true })
-                : Results.Conflict(new { error = "Assistant is busy — wait or stop the current run." }));
+        {
+            if (!svc.TrySend(input.Text))
+                throw new ConflictException("error.assistant.busySend");
+            return Results.Accepted(value: new { accepted = true });
+        });
 
         // The panel polls this (~1 s); pass the last seen rev to get entries only when something changed.
         // rev defaults to 0 so a bare /assistant/state returns the full state (svc comes first so rev can
@@ -30,8 +33,10 @@ public static class AssistantEndpoints
             new { stopped = svc.Stop() });
 
         assistant.MapMethods("/clear", EndpointHelpers.GetOrPost, (AssistantService svc) =>
-            svc.Clear()
-                ? Results.Ok(new { cleared = true })
-                : Results.Conflict(new { error = "Assistant is busy — stop the current run before clearing." }));
+        {
+            if (!svc.Clear())
+                throw new ConflictException("error.assistant.busyClear");
+            return Results.Ok(new { cleared = true });
+        });
     }
 }

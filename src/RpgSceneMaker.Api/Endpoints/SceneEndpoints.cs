@@ -1,3 +1,4 @@
+using RpgSceneMaker.Api.Errors;
 using RpgSceneMaker.Api.Models;
 using RpgSceneMaker.Api.Services;
 using RpgSceneMaker.Api.Validation;
@@ -51,7 +52,7 @@ public static class SceneEndpoints
         scenes.MapMethods("/{id}/activate", EndpointHelpers.GetOrPost, async (string id, SceneStore store, SceneActivator activator) =>
         {
             if (await store.GetAsync(id) is not { } scene)
-                return Results.NotFound(new { error = $"No scene with id '{id}'. See GET /scenes." });
+                throw new NotFoundException("error.scene.notFound", id);
             var result = await activator.ActivateAsync(scene);
             return Results.Json(result, statusCode: result.FullySucceeded ? 200 : 207);
         });
