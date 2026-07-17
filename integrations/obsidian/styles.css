@@ -20,7 +20,9 @@
 }
 
 .sm-chip:hover {
-  background: var(--background-modifier-hover);
+  /* background-color (longhand), NOT the `background` shorthand — the shorthand resets
+     background-size/position, which would make a banner's art jump on hover. */
+  background-color: var(--background-modifier-hover);
   border-color: var(--interactive-accent);
 }
 
@@ -91,6 +93,11 @@
   color: #fff;
   border-color: transparent;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Banner hover feedback that doesn't touch background geometry (so the art stays put). */
+.sm-chip--banner:hover {
+  filter: brightness(1.08);
 }
 
 /* Live indicator: a pulsing dot + accent ring while the scene/event/sound is active. */
