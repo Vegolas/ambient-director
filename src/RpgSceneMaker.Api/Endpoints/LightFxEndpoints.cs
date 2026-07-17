@@ -1,3 +1,4 @@
+using RpgSceneMaker.Api.Errors;
 using RpgSceneMaker.Api.Models;
 using RpgSceneMaker.Api.Services;
 using RpgSceneMaker.Api.Validation;
@@ -42,7 +43,7 @@ public static class LightFxEndpoints
             async (string id, string? light, int? seconds, LightFxStore store, LightFxTester tester) =>
         {
             if (await store.GetAsync(id) is not { } effect)
-                return Results.NotFound(new { error = $"No light FX with id '{id}'. See GET /lightfx/list." });
+                throw new NotFoundException("error.lightfx.notFound", id);
             var window = Math.Clamp(seconds ?? 10, 1, 60);
             await tester.StartAsync(effect, string.IsNullOrWhiteSpace(light) ? null : light, window);
             return Results.Ok(new { testing = effect.Id, seconds = window });

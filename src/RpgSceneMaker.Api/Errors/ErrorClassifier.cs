@@ -13,14 +13,19 @@ public static class ErrorClassifier
 {
     public static (int Status, string TitleKey) Classify(Exception ex) => ex switch
     {
+        NotFoundException => (StatusCodes.Status404NotFound, "error.title.notFound"),
+        ConflictException => (StatusCodes.Status409Conflict, "error.title.conflict"),
         ArgumentException => (StatusCodes.Status400BadRequest, "error.title.invalidRequest"),
         InvalidOperationException => (StatusCodes.Status503ServiceUnavailable, "error.title.notConfigured"),
         HueException => (StatusCodes.Status502BadGateway, "error.title.hue"),
         SpotifyException => (StatusCodes.Status502BadGateway, "error.title.spotify"),
         SoundboardException => (StatusCodes.Status503ServiceUnavailable, "error.title.soundboard"),
         AiProviderException => (StatusCodes.Status502BadGateway, "error.title.aiProvider"),
+        // Generic upstream/transport failure. Spotify and Hue wrap their own into SpotifyException/HueException
+        // (handled above), so this arm only catches un-wrapped HTTP-client / AI-SDK transport faults — hence a
+        // provider-neutral title rather than a Spotify-specific one.
         HttpRequestException or TaskCanceledException =>
-            (StatusCodes.Status502BadGateway, "error.title.spotifyUnreachable"),
+            (StatusCodes.Status502BadGateway, "error.title.upstreamUnreachable"),
         SocketException or IOException or TimeoutException =>
             (StatusCodes.Status504GatewayTimeout, "error.title.bulbUnreachable"),
         _ => (StatusCodes.Status500InternalServerError, "error.title.unexpected"),

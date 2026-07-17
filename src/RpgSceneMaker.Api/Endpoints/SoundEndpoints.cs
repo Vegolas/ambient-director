@@ -81,7 +81,7 @@ public static class SoundEndpoints
         sounds.MapPut("/{id}", async (string id, SoundUpdateInput input, SoundStore store, ImageFileStorage images) =>
         {
             if (await store.GetAsync(id) is not { } sound)
-                return Results.NotFound(new { error = $"No sound with id '{id}'." });
+                throw new NotFoundException("error.sound.notFound", id);
             var oldImage = sound.Image;
             if (input.Name is not null) sound.Name = input.Name.Trim();
             if (input.Category is not null) sound.Category = input.Category.Trim();
@@ -153,7 +153,7 @@ public static class SoundEndpoints
             async (string id, double? volume, SoundStore store, SoundFileStorage files, SoundboardPlayer player) =>
         {
             if (await store.GetAsync(id) is not { } sound)
-                return Results.NotFound(new { error = $"No sound with id '{id}'. See GET /sounds." });
+                throw new NotFoundException("error.sound.notFound", id);
             player.Play(sound.Id, files.FullPath(sound), sound.Loop, volume ?? sound.Volume);
             return Results.Ok(new { playing = sound.Id });
         });

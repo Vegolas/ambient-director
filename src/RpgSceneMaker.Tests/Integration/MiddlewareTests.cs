@@ -49,6 +49,43 @@ public class MiddlewareTests
     }
 
     [Fact]
+    public async Task Not_found_problem_carries_a_stable_machine_error_code()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        // Previously an ad-hoc { error = "..." } body: no code, English only. Now a coded Problem response.
+        var response = await client.GetAsync("/scenes/does-not-exist/activate");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("application/problem+json", response.Content.Headers.ContentType!.ToString());
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        // Stream Deck / MCP / tests can branch on this code regardless of language.
+        Assert.Equal("error.scene.notFound", problem.GetProperty("code").GetString());
+        Assert.Equal("Not found", problem.GetProperty("title").GetString());
+        Assert.Equal("No scene with id 'does-not-exist'. See GET /scenes.", problem.GetProperty("detail").GetString());
+        // The interpolation arg (the missing id) is on the wire for machine consumers.
+        Assert.Equal("does-not-exist", problem.GetProperty("args")[0].GetString());
+    }
+
+    [Fact]
+    public async Task Not_found_problem_localizes_with_X_Ui_Lang()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Ui-Lang", "pl");
+
+        var response = await client.GetAsync("/events/ghost/trigger");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        // Same stable code, Polish human-facing strings (proves the new keys exist in pl.json).
+        Assert.Equal("error.event.notFound", problem.GetProperty("code").GetString());
+        Assert.Equal("Nie znaleziono", problem.GetProperty("title").GetString());
+        Assert.Equal("Brak zdarzenia o identyfikatorze 'ghost'. Zobacz GET /events/list.", problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
     public async Task Validation_problem_carries_a_stable_machine_error_code()
     {
         using var factory = new ApiFactory();
