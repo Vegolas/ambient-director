@@ -81,7 +81,11 @@ export class PanelView extends ItemView {
   }
 
   private buildEmbed(host: HTMLElement, url: string): EmbedEl {
-    const fill = { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0", display: "block" };
+    // NB: do NOT set `display` here. A <webview>'s shadow root uses `:host { display: flex }` to
+    // stretch its internal <iframe> to full height; setting display:block on the host kills that
+    // and the inner iframe collapses to its 150px intrinsic default. position:absolute already
+    // block-ifies the element for us.
+    const fill = { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0" };
     if (Platform.isDesktopApp) {
       // <webview> isn't in the DOM typings; create it manually and treat it as an EmbedEl.
       const webview = document.createElement("webview") as EmbedEl;
