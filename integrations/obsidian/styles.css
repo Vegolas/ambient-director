@@ -134,21 +134,27 @@
 }
 
 /* Embedded control-panel pane. */
+/* Layout is also set inline in panelview.ts (belt-and-suspenders so the pane fills even against a
+   stale styles.css). Keep these in sync with those inline styles. */
 .sm-panel-view {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
-  min-height: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 .sm-panel-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--background-modifier-border);
-  flex: 0 0 auto;
 }
 
 .sm-panel-title {
@@ -180,9 +186,11 @@
 }
 
 .sm-panel-frame {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* <webview>/<iframe> are replaced elements: a percentage height that can't resolve falls back

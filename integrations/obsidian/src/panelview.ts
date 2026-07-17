@@ -3,6 +3,9 @@ import type SceneMakerPlugin from "./main";
 
 export const PANEL_VIEW_TYPE = "rpg-scene-maker-panel";
 
+/** Height of the little toolbar above the embedded panel, in px. */
+const BAR_HEIGHT = 34;
+
 /** Element that behaves like both an <iframe> and an Electron <webview> for our purposes. */
 type EmbedEl = HTMLElement & { src?: string; reload?: () => void };
 
@@ -46,6 +49,9 @@ export class PanelView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("sm-panel-view");
+    // Layout is set inline (not just in styles.css) so the pane fills correctly even if an older
+    // styles.css is still installed — the <webview> otherwise collapses to its 150px intrinsic height.
+    Object.assign(root.style, { position: "relative", height: "100%", padding: "0", overflow: "hidden" });
 
     const base = this.plugin.settings.baseUrl?.trim();
     if (!base) {
@@ -57,6 +63,7 @@ export class PanelView extends ItemView {
     }
 
     const bar = root.createDiv({ cls: "sm-panel-bar" });
+    Object.assign(bar.style, { position: "absolute", top: "0", left: "0", right: "0", height: `${BAR_HEIGHT}px` });
     bar.createSpan({ cls: "sm-panel-title", text: "Control panel" });
     bar.createSpan({ cls: "sm-panel-spacer" });
 
@@ -69,20 +76,24 @@ export class PanelView extends ItemView {
     external.onclick = () => window.open(base, "_blank");
 
     const host = root.createDiv({ cls: "sm-panel-frame" });
+    Object.assign(host.style, { position: "absolute", top: `${BAR_HEIGHT}px`, left: "0", right: "0", bottom: "0" });
     this.frame = this.buildEmbed(host, base);
   }
 
   private buildEmbed(host: HTMLElement, url: string): EmbedEl {
+    const fill = { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0", display: "block" };
     if (Platform.isDesktopApp) {
       // <webview> isn't in the DOM typings; create it manually and treat it as an EmbedEl.
       const webview = document.createElement("webview") as EmbedEl;
       webview.addClass("sm-panel-embed");
       webview.setAttribute("src", url);
       webview.setAttribute("allowpopups", "");
+      Object.assign(webview.style, fill);
       host.appendChild(webview);
       return webview;
     }
     const iframe = host.createEl("iframe", { cls: "sm-panel-embed" });
+    Object.assign(iframe.style, fill);
     iframe.src = url;
     return iframe;
   }
