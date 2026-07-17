@@ -43,6 +43,7 @@
     "common.connect": "Połącz",
     "common.disconnect": "Rozłącz",
     "common.reallyDelete": "Na pewno usunąć?",
+    "common.reallyClear": "Na pewno wyczyścić?",
     "common.modeColor": "Kolor",
     "common.modeWhite": "Białe",
     "common.modeOff": "Wył.",

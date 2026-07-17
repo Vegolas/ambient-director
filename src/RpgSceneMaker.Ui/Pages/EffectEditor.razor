@@ -2,7 +2,6 @@
 @page "/effects/new"
 @page "/effects/{FxId}"
 @using System.Text.Json
-@implements IDisposable
 @inject ApiClient Api
 @inject UiState Ui
 @inject NavigationManager Nav
@@ -85,9 +84,7 @@ else
     @if (!_isNew)
     {
         <div class="btn-row" style="margin-top:0.7rem">
-            <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? L["common.reallyDelete"] : L["effectEditor.deleteBtn"])
-            </button>
+            <ConfirmButton Disabled="_busy" OnConfirmed="DeleteConfirmed">@L["effectEditor.deleteBtn"]</ConfirmButton>
         </div>
         <p class="hint" style="margin-top:0.6rem">@L["effectEditor.deleteHint"]</p>
     }
@@ -105,9 +102,6 @@ else
 
     private string _testLight = "";
     private int _testSeconds = 10;
-
-    private bool _confirmDelete;
-    private Timer? _confirmTimer;
 
     // assistant drawer + real-time refresh
     private bool _drawerOpen;
@@ -258,19 +252,8 @@ else
 
     private Task Cancel() => Vt.NavigateAsync("effects");
 
-    private async Task DeleteTapped()
+    private async Task DeleteConfirmed()
     {
-        if (!_confirmDelete)
-        {
-            _confirmDelete = true;
-            _confirmTimer?.Dispose();
-            _confirmTimer = new Timer(_ => InvokeAsync(() => { _confirmDelete = false; StateHasChanged(); }),
-                null, 3000, Timeout.Infinite);
-            return;
-        }
-
-        _confirmTimer?.Dispose();
-        _confirmDelete = false;
         _busy = true;
         try
         {
@@ -287,6 +270,4 @@ else
         }
         finally { _busy = false; }
     }
-
-    public void Dispose() => _confirmTimer?.Dispose();
 }
