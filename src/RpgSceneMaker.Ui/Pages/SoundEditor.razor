@@ -35,9 +35,7 @@ else
             <button class="btn" @onclick="Cancel" disabled="@_busy">@L["common.cancel"]</button>
         </div>
         <div class="btn-row" style="margin-top:0.7rem">
-            <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? L["common.reallyDelete"] : L["soundEditor.deleteBtn"])
-            </button>
+            <ConfirmButton Disabled="_busy" OnConfirmed="DeleteConfirmed">@L["soundEditor.deleteBtn"]</ConfirmButton>
         </div>
     </div>
 }
@@ -49,7 +47,6 @@ else
     private SoundDto? _sound;
     private SoundEdit _edit = new();
     private bool _busy;
-    private bool _confirmDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,9 +107,8 @@ else
         return Api.CommandAsync($"sounds/{Uri.EscapeDataString(_sound.Id)}/play?volume={volume}");
     }
 
-    private async Task DeleteTapped()
+    private async Task DeleteConfirmed()
     {
-        if (!_confirmDelete) { _confirmDelete = true; return; }
         if (_sound is null) return;
 
         _busy = true;

@@ -107,9 +107,7 @@ else
     @if (!_isNew)
     {
         <div class="btn-row" style="margin-top:0.7rem">
-            <button class="btn btn--danger" @onclick="DeleteTapped" disabled="@_busy">
-                @(_confirmDelete ? L["common.reallyDelete"] : L["eventEditor.deleteBtn"])
-            </button>
+            <ConfirmButton Disabled="_busy" OnConfirmed="DeleteConfirmed">@L["eventEditor.deleteBtn"]</ConfirmButton>
         </div>
     }
 }
@@ -136,7 +134,6 @@ else
 
     private string? _runningId;
     private Timer? _timer;
-    private bool _confirmDelete;
 
     // assistant drawer + real-time refresh
     private bool _drawerOpen;
@@ -319,10 +316,8 @@ else
         }
     }
 
-    private async Task DeleteTapped()
+    private async Task DeleteConfirmed()
     {
-        if (!_confirmDelete) { _confirmDelete = true; return; }
-
         _busy = true;
         try
         {

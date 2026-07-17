@@ -1,0 +1,57 @@
+@* Two-tap confirm button. The first tap latches the button into a confirm label for a few seconds;
+   a second tap within that window fires OnConfirmed, and the latch auto-resets on timeout. Shared by
+   every destructive action (entity deletes, transcript/log clears) so they all behave identically. *@
+@implements IDisposable
+@inject Localizer L
+
+<button type="button" class="@Class" @onclick="Tapped" disabled="@Disabled">
+    @if (_armed)
+    {
+        @(ConfirmLabel ?? L["common.reallyDelete"])
+    }
+    else
+    {
+        @ChildContent
+    }
+</button>
+
+@code {
+    // Button CSS classes (e.g. "btn btn--danger", "btn btn--small").
+    [Parameter] public string Class { get; set; } = "btn btn--danger";
+
+    // Resting-state content (the normal label). Shown until the first tap arms the confirm.
+    [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
+
+    // Confirm-state label; defaults to the shared "Really delete?" string.
+    [Parameter] public string? ConfirmLabel { get; set; }
+
+    // Fired on the confirming (second) tap.
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    // How long the armed state lasts before auto-resetting (matches the legacy 3s window).
+    [Parameter] public int TimeoutMs { get; set; } = 3000;
+
+    private bool _armed;
+    private Timer? _timer;
+
+    private async Task Tapped()
+    {
+        if (!_armed)
+        {
+            _armed = true;
+            _timer?.Dispose();
+            _timer = new Timer(_ => InvokeAsync(() => { _armed = false; StateHasChanged(); }),
+                null, TimeoutMs, Timeout.Infinite);
+            return;
+        }
+
+        _timer?.Dispose();
+        _timer = null;
+        _armed = false;
+        await OnConfirmed.InvokeAsync();
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

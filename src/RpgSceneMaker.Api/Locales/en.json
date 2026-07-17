@@ -43,6 +43,7 @@
     "common.connect": "Connect",
     "common.disconnect": "Disconnect",
     "common.reallyDelete": "Really delete?",
+    "common.reallyClear": "Really clear?",
     "common.modeColor": "Color",
     "common.modeWhite": "White",
     "common.modeOff": "Off",

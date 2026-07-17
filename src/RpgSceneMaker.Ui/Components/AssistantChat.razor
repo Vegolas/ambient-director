@@ -70,7 +70,7 @@ else
                     <button class="btn btn--primary" @onclick="SendAsync"
                             disabled="@string.IsNullOrWhiteSpace(_input)">@L["assistant.send"]</button>
                 }
-                <button class="btn" @onclick="ClearAsync" disabled="@_busy">@L["assistant.clear"]</button>
+                <ConfirmButton Class="btn" ConfirmLabel="@L["common.reallyClear"]" Disabled="_busy" OnConfirmed="ClearAsync">@L["assistant.clear"]</ConfirmButton>
             </div>
         </div>
     </div>

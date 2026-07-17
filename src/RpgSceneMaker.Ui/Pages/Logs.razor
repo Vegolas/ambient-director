@@ -46,7 +46,7 @@
     <Chip On="@(_filter == LogFilter.All)" OnClick="@(() => _filter = LogFilter.All)">@L["logs.filterAll"]</Chip>
     <Chip On="@(_filter == LogFilter.Warnings)" OnClick="@(() => _filter = LogFilter.Warnings)">@L["logs.filterWarnings"]</Chip>
     <Chip On="@(_filter == LogFilter.Errors)" OnClick="@(() => _filter = LogFilter.Errors)">@L["logs.filterErrors"]</Chip>
-    <button class="btn btn--small" @onclick="ClearAsync">@L["logs.clear"]</button>
+    <ConfirmButton Class="btn btn--small" ConfirmLabel="@L["common.reallyClear"]" OnConfirmed="ClearAsync">@L["logs.clear"]</ConfirmButton>
 </div>
 
 @if (_logs is null)
