@@ -23,7 +23,7 @@ public static class SetupEndpoints
         // Read and update the lighting configuration (persisted to the database, applied immediately).
         setup.MapGet("/config", (SettingsStore store) => store.GetDto());
 
-        setup.MapPut("/config", (LightingConfigDto config, SettingsStore store) =>
+        setup.MapPut("/config", async (LightingConfigDto config, SettingsStore store, SceneStore scenes, EventStore events) =>
         {
             if (config.Hue is null || config.Tuya is null || config.Provider is null)
                 throw new ValidationException("error.setup.sectionsRequired");
@@ -32,7 +32,20 @@ public static class SetupEndpoints
             LightConfigValidation.Validate(config.Lights);
             // Persist the default light with its colour normalised to canonical #RRGGBB.
             config = config with { DefaultLight = LightConfigValidation.ValidateDefault(config.DefaultLight) };
+
+            // Which registered light keys are about to disappear? Materialise this from the *old* config before
+            // the save swaps it in (light keys use NOCASE collation, so compare case-insensitively).
+            var newKeys = new HashSet<string>((config.Lights ?? []).Select(l => l.Key), StringComparer.OrdinalIgnoreCase);
+            var removed = new HashSet<string>(
+                store.Current.Lights.Select(l => l.Key).Where(k => !newKeys.Contains(k)),
+                StringComparer.OrdinalIgnoreCase);
+
             store.Save(config);
+
+            // Drop scene per-light entries / timeline light clips that pointed at a now-removed light, so
+            // activating those scenes/events no longer warns "unknown light, skipped" for a dangling key.
+            await ReferenceScrubber.ScrubRemovedLightKeysAsync(scenes, events, removed);
+
             return Results.Ok(config);
         });
 
