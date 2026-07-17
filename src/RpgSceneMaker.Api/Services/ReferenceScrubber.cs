@@ -45,4 +45,40 @@ public static class ReferenceScrubber
             }
         }
     }
+
+    /// <summary>Drop every scene per-light entry (<see cref="Models.SceneLight"/>) and event-timeline light
+    /// clip (<see cref="Models.TimelineLightClip"/>) that targets a registered light key that was just removed
+    /// from the config, so activations no longer log "unknown light, skipped" for a key that no longer exists.
+    /// Entries/clips with no key ("all lights" via the provider group) are never touched. An event timeline
+    /// left with no clips at all is dropped back to a legacy (null-timeline) event, matching the sound scrub.
+    /// Only the scenes/events actually changed are saved. <paramref name="removedKeys"/> must compare
+    /// case-insensitively (light keys use NOCASE collation).</summary>
+    public static async Task ScrubRemovedLightKeysAsync(SceneStore scenes, EventStore events, IReadOnlySet<string> removedKeys)
+    {
+        if (removedKeys.Count == 0) return;
+
+        foreach (var scene in await scenes.GetAllAsync())
+        {
+            var kept = scene.Lights.Where(l => !removedKeys.Contains(l.LightKey)).ToList();
+            if (kept.Count != scene.Lights.Count)
+            {
+                scene.Lights = kept;
+                await scenes.UpsertAsync(scene);
+            }
+        }
+
+        foreach (var evt in await events.GetAllAsync())
+        {
+            if (evt.Timeline is not { } timeline) continue;
+            var keptClips = timeline.Lights
+                .Where(c => string.IsNullOrEmpty(c.LightKey) || !removedKeys.Contains(c.LightKey))
+                .ToList();
+            if (keptClips.Count == timeline.Lights.Count) continue;
+            timeline.Lights = keptClips;
+            // A timeline stripped of all clips triggers as a silent no-op — drop it back to a legacy event.
+            if (timeline.Sounds.Count == 0 && timeline.Lights.Count == 0)
+                evt.Timeline = null;
+            await events.UpsertAsync(evt);
+        }
+    }
 }
