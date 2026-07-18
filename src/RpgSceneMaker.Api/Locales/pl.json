@@ -661,6 +661,8 @@
     "playlistPicker.trackCount.one": "{0} utwór",
     "playlistPicker.trackCount.few": "{0} utwory",
     "playlistPicker.trackCount.many": "{0} utworów",
+    "playlistPicker.filterPlaceholder": "Filtruj playlisty…",
+    "playlistPicker.noMatch": "Brak playlist pasujących do „{0}”.",
     "swatchGrid.customColor": "Kolor niestandardowy",
     "colorPicker.hueAria": "Barwa",
     "colorPicker.satAria": "Nasycenie",
