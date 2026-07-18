@@ -1,0 +1,157 @@
+/* ============================================================
+   TV — the player-facing /tv display page (chrome-less, black)
+   and the panel's TV remote (/tv-remote).
+   ============================================================ */
+
+/* ---- the display itself ---- */
+
+.tv-stage {
+  position: fixed;
+  inset: 0;
+  background: #000; /* true black: a table TV should show the image and nothing else */
+  overflow: hidden;
+}
+
+.tv-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* whole map/handout visible, letterboxed on black */
+  opacity: 0;
+  transition: opacity 600ms ease; /* keep in sync with Tv.razor's FadeMs */
+
+  &.is-visible {
+    opacity: 1;
+  }
+}
+
+/* Idle: near-black, a small dim wordmark — deliberately no bright UI. */
+.tv-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  color: #343b47; /* dimmer than --text-faint: barely-there on a dark room's TV */
+
+  svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.55;
+  }
+
+  span {
+    font: var(--text-label);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+}
+
+/* ---- the GM remote ---- */
+
+.tv-now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: stretch;
+}
+
+.tv-now__preview {
+  width: 240px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+
+.tv-now__empty {
+  font: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.tv-now__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.tv-now__label {
+  font: var(--text-md);
+  color: var(--text-muted);
+}
+
+/* The upload control is a styled label wrapping a hidden file input, so the whole button is the picker. */
+.tv-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--s-2);
+
+  input[type="file"] {
+    display: none;
+  }
+}
+
+.tv-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-3);
+}
+
+.tv-tile {
+  min-height: var(--hit-min);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+
+  &:hover {
+    background: var(--card-raised);
+    border-color: var(--border-strong);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: var(--r-sm);
+    background: #000;
+  }
+
+  span {
+    font: var(--text-sm);
+    color: var(--text-muted);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+}
