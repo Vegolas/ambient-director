@@ -54,12 +54,15 @@
   background: var(--accent-soft);
 }
 
-/* Inline list filter (playlist picker) — the topbar .searchbar look, but for an in-page list. */
+/* Inline list filter (playlist picker) — the topbar .searchbar look, but for an in-page list.
+   The top margin keeps it off whatever sits above (URI field, section heading); it belongs to
+   the list below it. */
 .list-filter {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   min-height: var(--hit-min);
+  margin-top: var(--s-4);
   margin-bottom: var(--s-2);
   padding: 0 var(--s-3);
   background: var(--input);
