@@ -514,6 +514,60 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         return string.IsNullOrEmpty(id) ? (null, "Import succeeded but no image id was returned.") : (id, null);
     }
 
+    // ---------- tv (player-facing shared display) ----------
+
+    /// <summary>Poll what the shared table screen is showing; silent on failure like the other pollers.
+    /// Works without an API key (the /tv read routes are outside the gate, so a TV device that has no key
+    /// stored polls fine — AddHeadersAsync only attaches the key when one is set on this device).</summary>
+    public Task<TvStateDto?> GetTvStateAsync(long rev) => GetAsync<TvStateDto?>($"tv/state?rev={rev}");
+
+    /// <summary>Push a stored image to the TV, with an optional panel-side label (a GM command — key-gated).</summary>
+    public Task<bool> ShowOnTvAsync(string image, string? label, string? okMessage = null)
+    {
+        var path = $"tv/show?image={Uri.EscapeDataString(image)}";
+        if (!string.IsNullOrWhiteSpace(label))
+            path += $"&label={Uri.EscapeDataString(label.Trim())}";
+        return CommandAsync(path, okMessage);
+    }
+
+    /// <summary>Clear the TV (nothing shown; the display falls back to its idle state).</summary>
+    public Task<bool> ClearTvAsync(string? okMessage = null) => CommandAsync("tv/clear", okMessage);
+
+    /// <summary>Recently pushed TV content, newest first, for the remote's re-push tiles.</summary>
+    public async Task<List<TvRecentItemDto>> GetTvRecentAsync() =>
+        await GetAsync<List<TvRecentItemDto>>("tv/show/recent") ?? [];
+
+    /// <summary>Upload a picked file as-is (full resolution — maps/handouts for the TV, unlike the cropped
+    /// tile art) via the same /images/upload; returns the stored file name. 10 MB matches the server cap.</summary>
+    public async Task<(string? Id, string? Error)> UploadImageFileAsync(IBrowserFile file)
+    {
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            var part = new StreamContent(file.OpenReadStream(10L * 1024 * 1024));
+            if (!string.IsNullOrEmpty(file.ContentType))
+                part.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+            content.Add(part, "file", file.Name);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "images/upload") { Content = content };
+            await AddHeadersAsync(request);
+
+            using var response = await http.SendAsync(request);
+            ui.SetConnected(true);
+            if (!response.IsSuccessStatusCode)
+                return (null, await ExtractProblemAsync(response));
+
+            var node = await response.Content.ReadFromJsonAsync<JsonNode>(Json);
+            var id = node?["id"]?.GetValue<string>();
+            return string.IsNullOrEmpty(id) ? (null, "Upload succeeded but no image id was returned.") : (id, null);
+        }
+        catch (Exception ex)
+        {
+            ui.SetConnected(false);
+            return (null, $"Upload failed: {ex.Message}");
+        }
+    }
+
     // ---------- events (one-shot triggered effects) ----------
 
     public async Task<List<EventDto>> GetEventsAsync() =>
