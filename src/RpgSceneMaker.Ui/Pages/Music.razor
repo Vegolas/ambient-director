@@ -83,7 +83,7 @@ else
     </div>
 
     <SectionHeading>@L["music.playlists"]</SectionHeading>
-    <PlaylistPicker Playlists="FilteredPlaylists" OnPick="pl => Play(pl.Uri, pl.Name)">
+    <PlaylistPicker Playlists="FilteredPlaylists" Filterable="false" OnPick="pl => Play(pl.Uri, pl.Name)">
         <EmptyContent>
             @if (Searching)
             {

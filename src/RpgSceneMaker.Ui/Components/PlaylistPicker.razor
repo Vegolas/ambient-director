@@ -1,5 +1,6 @@
 @* The Spotify playlist list, with loading and empty states. Raises OnPick with the chosen playlist.
-   SelectedUri highlights the current pick (leave null when clicking should act immediately). *@
+   SelectedUri highlights the current pick (leave null when clicking should act immediately).
+   Filterable (default true) shows an inline name filter once the list is long enough to warrant it. *@
 @inject Localizer L
 
 @if (Playlists is null)
@@ -12,20 +13,55 @@ else if (Playlists.Count == 0)
 }
 else
 {
-    <div class="klist" style="@ListStyle">
-        @foreach (var pl in Playlists)
-        {
-            var hint = L.Plural("playlistPicker.trackCount", pl.TrackCount);
-            <KRow IconName="playlist" Title="@pl.Name" Hint="@hint"
-                  Selected="@(SelectedUri == pl.Uri)" OnClick="() => OnPick.InvokeAsync(pl)" />
-        }
-    </div>
+    @if (ShowFilter)
+    {
+        <div class="list-filter">
+            <span class="list-filter__ico" aria-hidden="true"><Icon Name="search" /></span>
+            <input type="search" inputmode="search" placeholder="@L["playlistPicker.filterPlaceholder"]"
+                   aria-label="@L["playlistPicker.filterPlaceholder"]" @bind="_filter" @bind:event="oninput" />
+        </div>
+    }
+
+    var shown = Filtered();
+    @if (shown.Count == 0)
+    {
+        @* A non-empty filter that matches nothing — distinct from EmptyContent (no playlists at all). *@
+        <p class="empty-note">@L.Format("playlistPicker.noMatch", _filter)</p>
+    }
+    else
+    {
+        <div class="klist" style="@ListStyle">
+            @foreach (var pl in shown)
+            {
+                var hint = L.Plural("playlistPicker.trackCount", pl.TrackCount);
+                <KRow IconName="playlist" Title="@pl.Name" Hint="@hint"
+                      Selected="@(SelectedUri == pl.Uri)" OnClick="() => OnPick.InvokeAsync(pl)" />
+            }
+        </div>
+    }
 }
 
 @code {
+    // Below this many playlists the filter is just clutter; above it, long lists need narrowing.
+    private const int FilterThreshold = 6;
+
     [Parameter] public List<SpotifyPlaylistDto>? Playlists { get; set; }
     [Parameter] public string? SelectedUri { get; set; }
     [Parameter] public EventCallback<SpotifyPlaylistDto> OnPick { get; set; }
     [Parameter] public RenderFragment? EmptyContent { get; set; }
     [Parameter] public string? ListStyle { get; set; }
+    [Parameter] public bool Filterable { get; set; } = true;
+
+    private string _filter = "";
+
+    // Show the filter only when enabled and the list is long enough to need it.
+    private bool ShowFilter => Filterable && Playlists is { Count: > FilterThreshold };
+
+    // Same matching the list pages use with the header search: Contains, case-insensitive.
+    private List<SpotifyPlaylistDto> Filtered()
+    {
+        if (Playlists is null) return [];
+        if (!ShowFilter || string.IsNullOrWhiteSpace(_filter)) return Playlists;
+        return Playlists.Where(p => p.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
 }

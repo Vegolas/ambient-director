@@ -656,6 +656,8 @@
     "playlistPicker.loading": "Reading your Spotify playlists…",
     "playlistPicker.trackCount.one": "{0} track",
     "playlistPicker.trackCount.other": "{0} tracks",
+    "playlistPicker.filterPlaceholder": "Filter playlists…",
+    "playlistPicker.noMatch": "No playlists match “{0}”.",
     "swatchGrid.customColor": "Custom color",
     "colorPicker.hueAria": "Hue",
     "colorPicker.satAria": "Saturation",
