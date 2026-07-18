@@ -13,9 +13,17 @@ namespace RpgSceneMaker.Api.Services.Music;
 /// </summary>
 public sealed class MusicRouter(IEnumerable<IMusicSource> sources, MusicSourceState active)
 {
-    /// <summary>The keys of the sources usable right now (Spotify only when connected; local always).</summary>
-    public IReadOnlyList<string> AvailableKeys() =>
-        sources.Where(s => s.IsAvailable).Select(s => s.Key).ToList();
+    /// <summary>The source keys to advertise in <c>/music/state</c> — the panel's transport-visibility gate
+    /// (Spotify when connected; local when its library has a track or something is loaded). Distinct from the
+    /// routing <see cref="IMusicSource.IsAvailable"/>, which keeps local always-routable.</summary>
+    public async Task<IReadOnlyList<string>> AvailableKeysAsync()
+    {
+        var keys = new List<string>();
+        foreach (var s in sources)
+            if (await s.IsAdvertisedAsync())
+                keys.Add(s.Key);
+        return keys;
+    }
 
     /// <summary>Resolve a source for a transport/state op: an explicit key wins (even if unavailable, so the
     /// caller gets that source's real error); otherwise the active source if still available; otherwise the
@@ -56,7 +64,7 @@ public sealed class MusicRouter(IEnumerable<IMusicSource> sources, MusicSourceSt
     {
         var source = Resolve(sourceKey);
         var state = await source.GetStateAsync();
-        var available = AvailableKeys();
+        var available = await AvailableKeysAsync();
         return state is null
             ? new MusicStateDto(source.Key, available, false, null, null, null, null, null, null, null, false, "off")
             : new MusicStateDto(state.Source, available, state.IsPlaying, state.TrackName, state.ArtistName,

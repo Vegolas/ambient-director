@@ -20,6 +20,13 @@ public class MusicTrackStore(IDbContextFactory<AppDbContext> dbFactory)
         return await db.MusicTracks.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id);
     }
 
+    /// <summary>Whether the library holds any track at all (the /music/state "available" gate).</summary>
+    public async Task<bool> AnyAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.MusicTracks.AsNoTracking().AnyAsync();
+    }
+
     public async Task UpsertAsync(MusicTrack track)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

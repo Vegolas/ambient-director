@@ -65,16 +65,21 @@ public class MusicLibraryTests
     }
 
     [Fact]
-    public async Task State_lists_local_as_an_available_source()
+    public async Task State_advertises_local_only_once_the_library_has_a_track()
     {
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
 
-        // Spotify is not connected in the test host, so only local is available.
+        // Fresh install: no Spotify, zero tracks -> nothing to control, so no source is advertised
+        // (the panel hides the transport, exactly like the old Spotify-only gate).
         var state = await client.GetFromJsonAsync<JsonElement>("/music/state");
+        Assert.Empty(state.GetProperty("available").EnumerateArray());
+
+        // Import one track -> local appears (Spotify still unconnected).
+        await ImportAsync(client, "Tavern Theme");
+        state = await client.GetFromJsonAsync<JsonElement>("/music/state");
         var available = state.GetProperty("available").EnumerateArray().Select(e => e.GetString()).ToList();
-        Assert.Contains("local", available);
-        Assert.DoesNotContain("spotify", available);
+        Assert.Equal(["local"], available);
     }
 
     [Fact]

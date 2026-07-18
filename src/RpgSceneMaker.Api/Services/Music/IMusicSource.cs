@@ -13,10 +13,16 @@ public interface IMusicSource
     /// <c>MusicSettings.Source</c> discriminator and the play-id source inference.</summary>
     string Key { get; }
 
-    /// <summary>Whether this source can be used right now (Spotify: an account is connected; local: always,
-    /// its device is created lazily on first play). Sources that aren't available are dropped from the
-    /// <c>/music/state</c> "available" list and skipped by the fallback resolver.</summary>
+    /// <summary>Whether this source can be used for <em>routing</em> right now (Spotify: an account is
+    /// connected; local: always — its device is created lazily on first play, and playing an empty library
+    /// already fails with a clean not-found). Unavailable sources are skipped by the fallback resolver.</summary>
     bool IsAvailable { get; }
+
+    /// <summary>Whether this source should be <em>advertised</em> in <c>/music/state</c>'s "available" list —
+    /// the panel's transport-visibility gate. Defaults to <see cref="IsAvailable"/> (Spotify: connected);
+    /// local additionally requires content (≥1 library track) or an active playback, so a fresh install with
+    /// no Spotify and zero tracks shows no dead transport controls.</summary>
+    Task<bool> IsAdvertisedAsync() => Task.FromResult(IsAvailable);
 
     /// <summary>Start playback for a source-native id (a spotify: URI/link for Spotify, a
     /// <c>local:track:{id}</c> / <c>local:playlist:{id}</c> for local).</summary>

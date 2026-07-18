@@ -35,10 +35,12 @@ public class MusicRouterTests
     }
 
     [Fact]
-    public void AvailableKeys_reflects_source_availability()
+    public async Task AvailableKeys_reflects_source_advertisement()
     {
+        // Fakes advertise via the interface default (== IsAvailable); LocalMusicSource's stricter
+        // has-content-or-playing gate is covered by LocalMusicSourceGateTests.
         var (router, _, _, _) = Build(spotifyAvailable: false);
-        Assert.Equal(["local"], router.AvailableKeys());
+        Assert.Equal(["local"], await router.AvailableKeysAsync());
     }
 
     [Fact]

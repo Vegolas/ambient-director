@@ -16,6 +16,10 @@ public sealed class LocalMusicSource(
 
     public bool IsAvailable => true;
 
+    // Advertise local transport only when there is something it could control: a non-empty library, or a
+    // queue already loaded (playing or paused). A fresh install with zero tracks shows no dead controls.
+    public async Task<bool> IsAdvertisedAsync() => player.GetState() is not null || await tracks.AnyAsync();
+
     public async Task PlayAsync(string id)
     {
         if (!LocalMusicId.TryParse(id, out var kind, out var entityId))
