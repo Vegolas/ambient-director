@@ -1,0 +1,359 @@
+@page "/boards/{Id}"
+@using System.Globalization
+@inject ApiClient Api
+@inject UiState Ui
+@inject ViewTransition Vt
+@inject Localizer L
+
+@* Board editor (MVP): a live 16:9 preview beside numeric controls — an element list with per-field X/Y/W/H,
+   text/colour/size/align and image swap, plus the board background. No on-canvas drag/resize yet (a follow-up):
+   typing a number moves the element in the preview immediately. Saving a board that's on the TV updates the
+   display live (the server bumps the TV rev). *@
+
+<PageTitle>Ambient Director — @(_edit.Name is { Length: > 0 } n ? n : L["boardEditor.titleFallback"])</PageTitle>
+
+<div class="btn-row" style="margin-bottom:0.2rem">
+    <button class="btn btn--small" @onclick='() => Vt.NavigateAsync("boards")'><Icon Name="back" /> @L["boards.title"]</button>
+</div>
+
+@if (_loading)
+{
+    <p class="empty-note">@L["boardEditor.loading"]</p>
+}
+else if (_notFound)
+{
+    <div class="page-head"><h1>@L["boardEditor.notFoundTitle"]</h1></div>
+    <p class="empty-note">@L.Format("boardEditor.notFoundBody", Id)<a href="boards">@L["boards.title"]</a>@L["boardEditor.notFoundBodyEnd"]</p>
+}
+else
+{
+    <div class="page-head"><h1>@(_edit.Name is { Length: > 0 } ? _edit.Name : L["boardEditor.titleFallback"])</h1></div>
+
+    <div class="board-editor">
+        <div class="board-editor__preview">
+            <div class="board-editor__stage">
+                <BoardCanvas Model="Preview" />
+            </div>
+            <p class="hint" style="margin-top:var(--s-3, 0.75rem)">@L["boardEditor.liveHint"]</p>
+        </div>
+
+        <div class="board-editor__controls">
+            <div class="panel">
+                <div class="field" style="margin-bottom:0">
+                    <label for="board-name">@L["boardEditor.nameLabel"]</label>
+                    <input id="board-name" type="text" value="@_edit.Name"
+                           @oninput="e => _edit.Name = e.Value?.ToString() ?? string.Empty" />
+                </div>
+            </div>
+
+            <SectionHeading>@L["boardEditor.background"]</SectionHeading>
+            <div class="panel">
+                <label class="art-label">@L["boardEditor.backgroundColor"]</label>
+                <SwatchGrid Selected="@(_edit.BackgroundColor ?? "#000000")" OnPick="@(hex => _edit.BackgroundColor = hex)" />
+
+                <label class="art-label" style="margin-top:var(--s-4,1rem)">@L["boardEditor.backgroundImage"]</label>
+                @if (Api.ImageUrl(_edit.BackgroundImage) is { } bgUrl)
+                {
+                    <div class="board-editor__thumb"><img src="@bgUrl" alt="" /></div>
+                }
+                <div class="btn-row" style="margin-top:0.6rem">
+                    <label class="btn btn--small board-upload">
+                        <InputFile OnChange="e => UploadAsync(e, FillTarget.Background, -1)" accept="image/png,image/jpeg,image/webp" disabled="@_busy" />
+                        @L["boardEditor.upload"]
+                    </label>
+                    <button class="btn btn--small" @onclick="() => OpenPdf(FillTarget.Background, -1)" disabled="@_busy"><Icon Name="pdf" /> @L["boardEditor.fromPdf"]</button>
+                    @if (!string.IsNullOrEmpty(_edit.BackgroundImage))
+                    {
+                        <button class="btn btn--small btn--danger" @onclick="() => _edit.BackgroundImage = null" disabled="@_busy">@L["boardEditor.clearImage"]</button>
+                    }
+                </div>
+            </div>
+
+            <SectionHeading>@L["boardEditor.elements"]</SectionHeading>
+            <p class="hint" style="margin-top:0">@L["boardEditor.zOrderHint"]</p>
+            <div class="panel">
+                @if (_edit.Elements.Count == 0)
+                {
+                    <p class="hint" style="margin:0">@L["boardEditor.noElements"]</p>
+                }
+                else
+                {
+                    <div class="board-ellist">
+                        @foreach (var (el, index) in _edit.Elements.Select((e, i) => (e, i)))
+                        {
+                            @* Key by the element instance so reorder moves the row's inputs/pickers (and their
+                               state) with the element rather than re-binding them in place. *@
+                            <div @key="el" class="board-elrow">
+                                <div class="board-elrow__head">
+                                    <span class="board-elrow__ico"><Icon Name="@(el.Kind == "image" ? "screens" : "edit")" /></span>
+                                    <span class="board-elrow__title">
+                                        @(el.Kind == "image" ? L["boardEditor.kindImage"] : L["boardEditor.kindText"])
+                                        <small class="hint">#@(index + 1)</small>
+                                    </span>
+                                    <button class="reorder" @onclick="() => Move(index, -1)" disabled="@(index == 0)" aria-label='@L["boardEditor.moveUp"]'><Icon Name="move-up" /></button>
+                                    <button class="reorder" @onclick="() => Move(index, 1)" disabled="@(index == _edit.Elements.Count - 1)" aria-label='@L["boardEditor.moveDown"]'><Icon Name="move-down" /></button>
+                                    <button class="reorder danger" @onclick="() => RemoveAt(index)" aria-label='@L["boardEditor.removeElement"]'><Icon Name="close" /></button>
+                                </div>
+
+                                <div class="board-geo">
+                                    @foreach (var f in GeoFields(el))
+                                    {
+                                        <label class="board-geo__cell">
+                                            <span>@f.Label</span>
+                                            @* @onchange (commit on blur/Enter/spinner), not @oninput: reformatting the
+                                               field on every keystroke would eat a decimal point mid-typing. *@
+                                            <input type="number" step="0.5" min="@Num(f.Min)" max="@Num(f.Max)"
+                                                   value="@Num(f.Get())" @onchange="e => f.Set(Clamp(e.Value, f.Get(), f.Min, f.Max))" />
+                                        </label>
+                                    }
+                                </div>
+
+                                @if (el.Kind == "image")
+                                {
+                                    @if (Api.ImageUrl(el.Image) is { } elUrl)
+                                    {
+                                        <div class="board-editor__thumb"><img src="@elUrl" alt="" /></div>
+                                    }
+                                    <div class="btn-row" style="margin-top:0.6rem">
+                                        <label class="btn btn--small board-upload">
+                                            <InputFile OnChange="e => UploadAsync(e, FillTarget.Element, index)" accept="image/png,image/jpeg,image/webp" disabled="@_busy" />
+                                            @L["boardEditor.upload"]
+                                        </label>
+                                        <button class="btn btn--small" @onclick="() => OpenPdf(FillTarget.Element, index)" disabled="@_busy"><Icon Name="pdf" /> @L["boardEditor.fromPdf"]</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="field" style="margin:0.6rem 0 0">
+                                        <label>@L["boardEditor.text"]</label>
+                                        <textarea class="board-textarea" rows="2" @bind="el.Text" @bind:event="oninput"></textarea>
+                                    </div>
+                                    <label class="art-label" style="margin-top:0.6rem">@L["boardEditor.textColor"]</label>
+                                    <SwatchGrid Selected="@el.Color" OnPick="@(hex => el.Color = hex)" />
+                                    <div class="board-textopts">
+                                        <label class="board-geo__cell">
+                                            <span>@L["boardEditor.textSize"]</span>
+                                            <input type="number" step="1" min="1" max="100"
+                                                   value="@Num(el.Size ?? 5)" @onchange="e => el.Size = Clamp(e.Value, el.Size ?? 5, 1, 100)" />
+                                        </label>
+                                        <div class="board-align">
+                                            <span class="art-label">@L["boardEditor.textAlign"]</span>
+                                            <Segmented TValue="string" Options="AlignOptions"
+                                                       Value="@(string.IsNullOrEmpty(el.Align) ? "left" : el.Align)"
+                                                       ValueChanged="v => el.Align = v" />
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="btn-row" style="margin-top:var(--s-4,1rem)">
+                    <button class="btn btn--small" @onclick="AddText"><Icon Name="add" /> @L["boardEditor.addText"]</button>
+                    <label class="btn btn--small board-upload">
+                        <InputFile OnChange="e => UploadAsync(e, FillTarget.NewImage, -1)" accept="image/png,image/jpeg,image/webp" disabled="@_busy" />
+                        <Icon Name="add" /> @L["boardEditor.addImage"]
+                    </label>
+                    <button class="btn btn--small" @onclick="() => OpenPdf(FillTarget.NewImage, -1)" disabled="@_busy"><Icon Name="pdf" /> @L["boardEditor.fromPdf"]</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="editor-actions">
+        <button class="btn btn--primary" @onclick="Save" disabled="@_busy">@L["common.save"]</button>
+        <button class="btn" @onclick="ShowOnTv" disabled="@_busy"><Icon Name="tv" /> @L["boards.showOnTv"]</button>
+    </div>
+    <div class="btn-row" style="margin-top:0.7rem">
+        <ConfirmButton Disabled="_busy" OnConfirmed="DeleteConfirmed">@L["boardEditor.deleteBtn"]</ConfirmButton>
+    </div>
+}
+
+@if (_pdfOpen)
+{
+    <PdfPagePicker OnPicked="OnPdfPicked" OnClose="ClosePdf" />
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _notFound;
+    private bool _busy;
+    private BoardEdit _edit = new();
+
+    // Which slot an upload / PDF pick is filling: the background, an existing element (by index), or a brand-new
+    // image element (appended only once a stored id comes back — never an invalid imageless element).
+    private enum FillTarget { None, Background, Element, NewImage }
+    private FillTarget _target = FillTarget.None;
+    private int _targetIndex = -1;
+    private bool _pdfOpen;
+
+    private (string, string)[] AlignOptions =>
+        [("left", L["boardEditor.alignLeft"]), ("center", L["boardEditor.alignCenter"]), ("right", L["boardEditor.alignRight"])];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Api.GetApiKeyAsync(); // cache the key so preview/thumbnail image urls carry it
+        var dto = (await Api.GetBoardsAsync())
+            .FirstOrDefault(b => string.Equals(b.Id, Id, StringComparison.OrdinalIgnoreCase));
+        if (dto is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+        _edit = BoardEdit.FromDto(dto);
+        _loading = false;
+    }
+
+    // Re-mapped from the edit model every render, so any numeric/text/colour change previews immediately.
+    private TvBoardDto Preview => BoardRender.ToRenderModel(_edit.ToDto(), Api.ImageUrl);
+
+    // ---------- geometry inputs ----------
+
+    private record GeoField(string Label, double Min, double Max, Func<double> Get, Action<double> Set);
+
+    // X/Y anchor the top-left (0–100), W/H the size (0.1–100) — labelled with the literal symbols.
+    private static GeoField[] GeoFields(BoardElementEdit el) =>
+    [
+        new("X", 0, 100, () => el.X, v => el.X = v),
+        new("Y", 0, 100, () => el.Y, v => el.Y = v),
+        new("W", 0.1, 100, () => el.W, v => el.W = v),
+        new("H", 0.1, 100, () => el.H, v => el.H = v),
+    ];
+
+    private static string Num(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);
+
+    // Parse an input to a finite number clamped to [min,max]; keep the old value on an unparseable entry.
+    private static double Clamp(object? value, double fallback, double min, double max) =>
+        double.TryParse(value?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
+            ? Math.Clamp(v, min, max) : fallback;
+
+    // ---------- element add / move / remove ----------
+
+    private void AddText() => _edit.Elements.Add(new BoardElementEdit
+    {
+        Kind = "text", X = 10, Y = 10, W = 40, H = 12, Size = 5, Align = "left", Color = "#FFFFFF",
+        Text = L["boardEditor.newTextDefault"],
+    });
+
+    private void Move(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= _edit.Elements.Count) return;
+        (_edit.Elements[index], _edit.Elements[target]) = (_edit.Elements[target], _edit.Elements[index]);
+    }
+
+    private void RemoveAt(int index) => _edit.Elements.RemoveAt(index);
+
+    // ---------- image uploads / PDF picks ----------
+
+    private async Task UploadAsync(InputFileChangeEventArgs e, FillTarget target, int index)
+    {
+        if (_busy || e.FileCount == 0) return;
+        var file = e.File;
+        if (file.Size > 10L * 1024 * 1024)
+        {
+            Ui.ReportError(L.Format("tv.fileTooLarge", 10));
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var (id, error) = await Api.UploadImageFileAsync(file);
+            if (id is null)
+            {
+                Ui.ReportError(error ?? L["tv.toast.uploadFailed"]);
+                return;
+            }
+            ApplyImage(target, index, id);
+        }
+        finally { _busy = false; }
+    }
+
+    private void OpenPdf(FillTarget target, int index)
+    {
+        _target = target;
+        _targetIndex = index;
+        _pdfOpen = true;
+    }
+
+    private void ClosePdf() => _pdfOpen = false;
+
+    private void OnPdfPicked(string? id)
+    {
+        _pdfOpen = false;
+        if (!string.IsNullOrEmpty(id)) ApplyImage(_target, _targetIndex, id!);
+        _target = FillTarget.None;
+        _targetIndex = -1;
+    }
+
+    // Route a freshly-stored image id to its slot. A NewImage appends a valid image element (never imageless).
+    private void ApplyImage(FillTarget target, int index, string id)
+    {
+        switch (target)
+        {
+            case FillTarget.Background:
+                _edit.BackgroundImage = id;
+                break;
+            case FillTarget.Element:
+                if (index >= 0 && index < _edit.Elements.Count) _edit.Elements[index].Image = id;
+                break;
+            case FillTarget.NewImage:
+                _edit.Elements.Add(new BoardElementEdit { Kind = "image", X = 10, Y = 10, W = 30, H = 30, Image = id });
+                break;
+        }
+    }
+
+    // ---------- save / show / delete ----------
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_edit.Name))
+        {
+            Ui.ReportError(L["boardEditor.toast.nameFirst"]);
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var (_, error) = await Api.SaveBoardAsync(_edit.Id, _edit);
+            if (error is not null)
+            {
+                Ui.ReportError(error);
+                return;
+            }
+            Ui.ReportOk(L.Format("boardEditor.toast.saved", _edit.Id));
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ShowOnTv()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await Api.ShowBoardOnTvAsync(_edit.Id, null, L["tv.toast.shown"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteConfirmed()
+    {
+        _busy = true;
+        try
+        {
+            var (ok, error) = await Api.DeleteBoardAsync(_edit.Id);
+            if (ok)
+            {
+                Ui.ReportOk(L.Format("boardEditor.toast.deleted", _edit.Id));
+                await Vt.NavigateAsync("boards");
+            }
+            else
+            {
+                Ui.ReportError(error ?? L["boardEditor.toast.deleteFailed"]);
+            }
+        }
+        finally { _busy = false; }
+    }
+}

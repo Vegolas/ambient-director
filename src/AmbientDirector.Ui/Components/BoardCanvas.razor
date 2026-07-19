@@ -1,0 +1,47 @@
+@* The single board renderer. Draws a board's render model (TvBoardDto) onto a fixed 16:9 stage; used by the
+   TV page, the editor's live preview, the boards-list cards and the remote's now-showing/rail previews. The
+   element list order IS the paint/z-order (index 0 = bottom) — there is no z-index. Text sizes in cqh (1% of
+   the container's height) so it scales identically on a full TV, the editor preview and a tiny list card; that
+   is why the root sets container-type:size. Purely presentational — no interactivity lives here. *@
+
+<div class="board-canvas" style="background:@(Model.BackgroundColor ?? "#000")">
+    @if (Model.BackgroundUrl is { } bg && !_failed.Contains(bg))
+    {
+        <img class="board-canvas__bg" src="@bg" alt="" @onerror="() => _failed.Add(bg)" />
+    }
+    @foreach (var el in Model.Elements)
+    {
+        <div class="board-el" style="left:@Pct(el.X)%;top:@Pct(el.Y)%;width:@Pct(el.W)%;height:@Pct(el.H)%">
+            @if (el.Kind == "image")
+            {
+                @if (el.Url is { } url && !_failed.Contains(url))
+                {
+                    @* A vanished file must not show a broken-image glyph on the table TV — hide it on error. *@
+                    <img class="board-el__img" src="@url" alt="" @onerror="() => _failed.Add(url)" />
+                }
+            }
+            else if (el.Kind == "text")
+            {
+                <div class="board-el__text" style="@TextStyle(el)">@el.Text</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TvBoardDto Model { get; set; } = default!;
+
+    // Image urls that failed to load — skipped on re-render so a broken file never flashes a glyph. Keyed by
+    // the full url (which carries ?rev=/?apiKey=), so a re-pushed or edited board's new url retries the fetch.
+    private readonly HashSet<string> _failed = new(StringComparer.Ordinal);
+
+    private static string Pct(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string TextStyle(TvBoardElementDto el)
+    {
+        var size = el.Size is { } s and > 0 ? s : 5;              // percent of stage height (renderer default 5)
+        var align = string.IsNullOrEmpty(el.Align) ? "left" : el.Align;
+        var color = string.IsNullOrEmpty(el.Color) ? "#eef2f8" : el.Color; // near-white (matches --text token)
+        return $"--sz:{Pct(size)};text-align:{align};color:{color}";
+    }
+}
