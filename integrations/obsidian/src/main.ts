@@ -16,7 +16,14 @@ export default class SceneMakerPlugin extends Plugin {
   api!: SceneMakerApi;
   tracker!: StateTracker;
 
-  async onload(): Promise<void> {
+  // Component.onload is typed void (through Obsidian 1.5.x), so the async part runs fire-and-forget;
+  // every registration below is Component-tracked, so an unload during the (one disk read) settings
+  // load still cleans up correctly.
+  onload(): void {
+    void this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
     await this.loadSettings();
     this.api = new SceneMakerApi(() => ({ baseUrl: this.settings.baseUrl, apiKey: this.settings.apiKey }));
     this.tracker = new StateTracker(this);
@@ -89,7 +96,8 @@ export default class SceneMakerPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = (await this.loadData()) as Partial<SceneMakerSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
   }
 
   async saveSettings(): Promise<void> {

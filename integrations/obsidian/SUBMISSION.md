@@ -303,6 +303,11 @@ available spec. Verified 2026-07-18.)
 - Manual staff code-review is now optional/deferred (many plugins are admitted automatically and shown
   as "not manually reviewed by Obsidian staff"), so the automated checks above are the gate that
   matters for getting listed.
+- **One warning is skipped on purpose:** the reviewer suggests implementing `getSettingDefinitions()`
+  (declarative settings, searchable in Obsidian ≥1.13). Adopting it means *using a 1.13 API*, which
+  either re-triggers the "APIs newer than minAppVersion" **error** or forces `minAppVersion` up to
+  `1.13.0`, dropping older installs. Deliberately deferred: revisit in a later release once a 1.13+
+  floor is acceptable, bumping `minAppVersion` and the pinned `obsidian` typings together.
 
 ---
 

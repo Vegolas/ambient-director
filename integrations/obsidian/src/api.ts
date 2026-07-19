@@ -83,14 +83,17 @@ export class SceneMakerApi {
     try {
       const res = await requestUrl({ url: base + LIST_PATH[kind], method: "GET", headers: this.headers(), throw: false });
       if (res.status < 200 || res.status >= 300) return cached?.items ?? [];
-      const raw = res.json;
+      const raw: unknown = res.json;
       if (!Array.isArray(raw)) return cached?.items ?? [];
-      const items: Entity[] = raw.map((x) => ({
-        id: String(x.id ?? ""),
-        name: String(x.name ?? ""),
-        image: x.image ?? null,
-        category: x.category,
-      }));
+      const items: Entity[] = raw.map((entry) => {
+        const x = (entry ?? {}) as { id?: unknown; name?: unknown; image?: unknown; category?: unknown };
+        return {
+          id: String(x.id ?? ""),
+          name: String(x.name ?? ""),
+          image: typeof x.image === "string" ? x.image : null,
+          category: typeof x.category === "string" ? x.category : undefined,
+        };
+      });
       this.cache[kind] = { at: Date.now(), items };
       return items;
     } catch {
