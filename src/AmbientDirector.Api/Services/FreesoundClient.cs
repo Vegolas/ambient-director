@@ -17,6 +17,11 @@ public class FreesoundClient
     private const int PageSize = 24;
     private const string Fields = "id,name,username,license,duration,previews,tags";
 
+    // The body read gets its own budget: a preview can be several MB (a long ambient track outruns the
+    // short client timeout, which is tuned for the fast JSON search/metadata calls). Paired with
+    // ResponseHeadersRead below, this is the effective ceiling for the actual download.
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(3);
+
     private readonly HttpClient _http;
     private readonly FreesoundStore _store;
     private readonly string _base;
@@ -57,14 +62,18 @@ public class FreesoundClient
     }
 
     /// <summary>Download a preview (the HQ MP3) as bytes. The token is attached in case Freesound wants it;
-    /// the public CDN ignores it.</summary>
+    /// the public CDN ignores it. The body is streamed under its own generous <see cref="DownloadTimeout"/>
+    /// (the client's short timeout only bounds getting the response headers), so a long clip on a normal
+    /// connection isn't cut off mid-download.</summary>
     public async Task<byte[]> DownloadPreviewAsync(string previewUrl, CancellationToken ct = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, previewUrl);
         Authorize(request);
-        using var response = await _http.SendAsync(request, ct);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         await EnsureSuccessAsync(response);
-        return await response.Content.ReadAsByteArrayAsync(ct);
+        using var download = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        download.CancelAfter(DownloadTimeout);
+        return await response.Content.ReadAsByteArrayAsync(download.Token);
     }
 
     // ---------- transport ----------
