@@ -804,6 +804,42 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
         }
     }
 
+    // ---------- boards (composable player-facing TV content) ----------
+
+    public async Task<List<BoardDto>> GetBoardsAsync() =>
+        await GetAsync<List<BoardDto>>("boards/list") ?? [];
+
+    /// <summary>Upsert a board (the id rides in the route, the whole board in the body); the editor shows the
+    /// returned error inline / via toast. There is deliberately no GET /boards/{id} — the panel loads the list
+    /// and picks by id client-side, so this is the only board write.</summary>
+    public Task<(BoardDto? Result, string? Error)> SaveBoardAsync(string id, BoardEdit edit) =>
+        FetchAsync<BoardDto>(HttpMethod.Put, $"boards/{Uri.EscapeDataString(id)}", edit.ToDto());
+
+    public async Task<(bool Ok, string? Error)> DeleteBoardAsync(string id)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Delete, $"boards/{Uri.EscapeDataString(id)}");
+            ui.SetConnected(true);
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ExtractProblemAsync(response));
+        }
+        catch (Exception ex)
+        {
+            ui.SetConnected(false);
+            return (false, $"API unreachable: {ex.Message}");
+        }
+    }
+
+    /// <summary>Push a saved board to the TV (a GM command — key-gated, like ShowOnTvAsync). The label
+    /// defaults server-side to the board's own name when omitted.</summary>
+    public Task<bool> ShowBoardOnTvAsync(string id, string? label = null, string? okMessage = null)
+    {
+        var path = $"tv/show?board={Uri.EscapeDataString(id)}";
+        if (!string.IsNullOrWhiteSpace(label))
+            path += $"&label={Uri.EscapeDataString(label.Trim())}";
+        return CommandAsync(path, okMessage);
+    }
+
     // ---------- light fx (reusable effect library) ----------
 
     public async Task<List<LightFxDto>> GetLightFxAsync() =>

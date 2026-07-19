@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MusicPlaylist> MusicPlaylists => Set<MusicPlaylist>();
     public DbSet<GameEvent> Events => Set<GameEvent>();
     public DbSet<Screen> Screens => Set<Screen>();
+    public DbSet<Board> Boards => Set<Board>();
     public DbSet<LightFx> LightFxs => Set<LightFx>();
     public DbSet<LightingConfig> LightingConfigs => Set<LightingConfig>();
     public DbSet<SpotifyConfig> SpotifyConfigs => Set<SpotifyConfig>();
@@ -81,6 +82,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             screen.Property(s => s.Id).UseCollation("NOCASE");
             // Tiles are a small ordered list of value objects — stored as one JSON column (like Scene.Lights).
             screen.OwnsMany(s => s.Tiles, b => b.ToJson());
+        });
+
+        modelBuilder.Entity<Board>(board =>
+        {
+            board.HasKey(b => b.Id);
+            // Board ids appear in hand-typed /tv/show?board= URLs, so match them case-insensitively too.
+            board.Property(b => b.Id).UseCollation("NOCASE");
+            // Elements are a small ordered list of value objects — stored as one JSON column (like Scene.Lights).
+            board.OwnsMany(b => b.Elements, b => b.ToJson());
         });
 
         modelBuilder.Entity<LightFx>(fx =>

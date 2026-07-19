@@ -6,22 +6,41 @@
 
 @* The player-facing display: a chrome-less black stage a table TV / tablet / cast tab points at.
    Polls /tv/state every 2 s (both routes are outside the API-key gate, so this device needs no key)
-   and crossfades between pushed images. The rev is the server's word — it resets to 1 on a restart,
-   so any change (not just growth) triggers a refresh. *@
+   and crossfades between pushed content — a full image OR a composed board (see BoardCanvas). The rev is
+   the server's word — it resets to 1 on a restart, so ANY change (not just growth, and including a live
+   edit of the shown board) triggers a refresh. *@
 
 <PageTitle>Ambient Director — TV</PageTitle>
 
 <div class="tv-stage">
-    @if (_displayUrl is not null)
+    @if (_display is { } d)
     {
-        <img class="tv-img @(_clearing ? "" : "is-visible")" src="@_displayUrl" alt="" />
+        @if (d.Kind == "board")
+        {
+            <div @key="d.Seq" class="tv-layer tv-board-wrap @(_clearing ? "" : "is-visible")">
+                <BoardCanvas Model="d.Board!" />
+            </div>
+        }
+        else
+        {
+            <img @key="d.Seq" class="tv-layer tv-img @(_clearing ? "" : "is-visible")" src="@d.Url" alt="" />
+        }
     }
-    @if (_incomingUrl is not null)
+    @if (_incoming is { } inc)
     {
-        <img class="tv-img @(_incomingLoaded ? "is-visible" : "")" src="@_incomingUrl" alt=""
-             @onload="OnIncomingLoaded" @onerror="OnIncomingError" />
+        @if (inc.Kind == "board")
+        {
+            <div @key="inc.Seq" class="tv-layer tv-board-wrap @(_incomingLoaded ? "is-visible" : "")">
+                <BoardCanvas Model="inc.Board!" />
+            </div>
+        }
+        else
+        {
+            <img @key="inc.Seq" class="tv-layer tv-img @(_incomingLoaded ? "is-visible" : "")" src="@inc.Url" alt=""
+                 @onload="OnIncomingLoaded" @onerror="OnIncomingError" />
+        }
     }
-    @if (_displayUrl is null && _incomingUrl is null)
+    @if (_display is null && _incoming is null)
     {
         @* Idle: near-black with a small dim wordmark — no bright UI on a table TV. Literal brand text,
            like the top bar's; the TV shows no other chrome to localize. *@
@@ -33,16 +52,21 @@
 </div>
 
 @code {
-    // How long the CSS opacity transition runs (see .tv-img in _tv.scss) plus a little slack, so the
+    // How long the CSS opacity transition runs (see .tv-layer in _tv.scss) plus a little slack, so the
     // covered layer is only dropped after the crossfade has finished.
     private const int FadeMs = 700;
 
-    private long _rev;                // last applied server revision (0 = nothing seen yet; server starts at 1)
-    private string? _displayUrl;      // the fully shown layer
-    private string? _incomingUrl;     // the layer loading / fading in on top
+    // One shown layer, image or board. Seq (the monotonic token at push time) keys the element so promoting an
+    // incoming layer to the display slot reuses the same DOM node — no flash — and a new push forces a fresh one.
+    private record Layer(int Seq, string Kind, string? Url, TvBoardDto? Board);
+
+    private long _rev;             // last applied server revision (0 = nothing seen yet; server starts at 1)
+    private Layer? _display;       // the fully shown layer
+    private Layer? _incoming;      // the layer loading / fading in on top
     private bool _incomingLoaded;
-    private bool _clearing;           // display layer fading out after /tv/clear
-    private int _token;               // invalidates delayed swaps when a newer push/clear arrives
+    private bool _clearing;        // display layer fading out after /tv/clear
+    private int _token;            // invalidates delayed swaps when a newer push/clear arrives
+    private bool _boardPromoting;  // guards the one-shot "board has no load event" promote from OnAfterRender
     private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
@@ -58,6 +82,17 @@
             // Best-effort screen wake lock; unsupported browsers just ignore it (see js/tv.js).
             try { await JS.InvokeVoidAsync("rpgTv.keepAwake"); } catch { /* degrade silently */ }
         }
+
+        // A board layer has no single <img> load event, so mark it loaded shortly after its first paint: the
+        // browser paints it at opacity 0, then we add .is-visible so the opacity transition actually runs.
+        if (_incoming is { Kind: "board" } && !_incomingLoaded && !_boardPromoting)
+        {
+            _boardPromoting = true;
+            var token = _token;
+            await Task.Delay(30);
+            if (token != _token) return; // a newer push/clear took over meanwhile
+            await OnIncomingLoaded();
+        }
     }
 
     private async Task PollAsync()
@@ -67,21 +102,30 @@
         if (state.Rev == _rev) return;    // unchanged; compare by inequality, never by growth (rev resets on restart)
         _rev = state.Rev;
 
-        if (state.Content?.Url is not { } url)
+        if (state.Content is not { } content)
         {
             await BeginClearAsync();
         }
+        else if (content.Kind == "board" && content.Board is { } board)
+        {
+            BeginShow("board", null, board);
+        }
+        else if (content.Url is { } url)
+        {
+            BeginShow("image", url, null);
+        }
         else
         {
-            BeginShow(url);
+            await BeginClearAsync();
         }
     }
 
-    private void BeginShow(string url)
+    private void BeginShow(string kind, string? url, TvBoardDto? board)
     {
         _token++;
         _clearing = false;
-        _incomingUrl = url;               // loads on top; the old image stays until the new one has faded in
+        _boardPromoting = false;
+        _incoming = new Layer(_token, kind, url, board);   // loads on top; the old layer stays until it's faded in
         _incomingLoaded = false;
         StateHasChanged();
     }
@@ -92,17 +136,17 @@
         var token = _token;
         StateHasChanged();
         await Task.Delay(FadeMs);
-        if (token != _token || _incomingUrl is null) return; // a newer push/clear took over meanwhile
-        _displayUrl = _incomingUrl;       // promote: swap happens under a fully opaque layer
-        _incomingUrl = null;
+        if (token != _token || _incoming is null) return; // a newer push/clear took over meanwhile
+        _display = _incoming;             // promote: swap happens under a fully opaque layer
+        _incoming = null;
         _incomingLoaded = false;
         StateHasChanged();
     }
 
     private void OnIncomingError()
     {
-        // The pushed file failed to load (deleted meanwhile?) — drop the layer; the old image stays up.
-        _incomingUrl = null;
+        // The pushed image failed to load (deleted meanwhile?) — drop the layer; the old one stays up.
+        _incoming = null;
         _incomingLoaded = false;
     }
 
@@ -110,9 +154,10 @@
     {
         _token++;
         var token = _token;
-        _incomingUrl = null;              // abandon any half-loaded push
+        _incoming = null;                 // abandon any half-loaded push
         _incomingLoaded = false;
-        if (_displayUrl is null)
+        _boardPromoting = false;
+        if (_display is null)
         {
             StateHasChanged();
             return;
@@ -121,7 +166,7 @@
         StateHasChanged();
         await Task.Delay(FadeMs);
         if (token != _token) return;
-        _displayUrl = null;
+        _display = null;
         _clearing = false;
         StateHasChanged();
     }

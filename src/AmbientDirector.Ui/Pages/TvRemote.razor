@@ -5,9 +5,9 @@
 @inject NavigationManager Nav
 @inject Localizer L
 
-@* The GM's remote for the player-facing /tv display: shows what's on the TV now (with a prominent
-   Clear), uploads-and-pushes a new image (full resolution — no tile-art crop), and re-pushes recent
-   content. Polls the same /tv/state as the TV so two GM tabs stay in sync. *@
+@* The GM's remote for the player-facing /tv display: shows what's on the TV now (with a prominent Clear),
+   uploads-and-pushes a new image (full resolution — no tile-art crop), pushes any saved board, and re-pushes
+   recent content (image or board). Polls the same /tv/state as the TV so two GM tabs stay in sync. *@
 
 <PageTitle>Ambient Director — @L["tv.title"]</PageTitle>
 
@@ -19,9 +19,13 @@
     <SectionHeading>@L["tv.nowShowing"]</SectionHeading>
     <div class="tv-now">
         <div class="tv-now__preview">
-            @if (_state?.Content is { } content)
+            @if (_state?.Content is { Kind: "board", Board: { } board })
             {
-                <img src="@content.Url" alt='@L["tv.nowShowingAlt"]' />
+                <BoardCanvas Model="board" />
+            }
+            else if (_state?.Content is { Url: { } url })
+            {
+                <img src="@url" alt='@L["tv.nowShowingAlt"]' />
             }
             else
             {
@@ -65,6 +69,30 @@
 }
 
 <div class="panel" style="margin-top:1rem">
+    <SectionHeading>@L["tv.boards"]</SectionHeading>
+    @if (_boards.Count == 0)
+    {
+        <p class="empty-note">@L["tv.boardsEmpty"] <a href="boards">@L["nav.boards"]</a></p>
+    }
+    else
+    {
+        @* role="button" divs, not <button>s: a BoardCanvas mini preview renders block divs that can't validly
+           nest inside a <button>. *@
+        <div class="tv-boards">
+            @foreach (var b in _boards)
+            {
+                <div class="tv-boardtile @(_busy ? "is-busy" : "")" role="button" tabindex="0"
+                     title='@L["tv.pushBoard"]' @onclick="() => PushBoard(b.Id, null)"
+                     @onkeydown="e => OnBoardKey(e, b.Id)">
+                    <div class="tv-boardtile__preview"><BoardCanvas Model="Render(b)" /></div>
+                    <span>@b.Name</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<div class="panel" style="margin-top:1rem">
     <SectionHeading>@L["tv.recent"]</SectionHeading>
     @if (_recent.Count == 0)
     {
@@ -76,11 +104,19 @@
             @foreach (var item in _recent)
             {
                 <button class="tv-tile" title='@L["tv.repush"]' disabled="@_busy"
-                        @onclick="() => Push(item.File, item.Label)">
-                    <img src="@Api.ImageUrl(item.File)" alt="" loading="lazy" />
-                    @if (!string.IsNullOrEmpty(item.Label))
+                        @onclick="() => PushRecent(item)">
+                    @if (item.Kind == "board")
                     {
-                        <span>@item.Label</span>
+                        <span class="tv-tile__board"><Icon Name="boards" /></span>
+                        <span>@RecentBoardName(item)</span>
+                    }
+                    else
+                    {
+                        <img src="@Api.ImageUrl(item.Ref)" alt="" loading="lazy" />
+                        @if (!string.IsNullOrEmpty(item.Label))
+                        {
+                            <span>@item.Label</span>
+                        }
                     }
                 </button>
             }
@@ -91,6 +127,7 @@
 @code {
     private TvStateDto? _state;
     private List<TvRecentItemDto> _recent = [];
+    private List<BoardDto> _boards = [];
     private long _rev;
     private string _label = "";
     private bool _busy;
@@ -102,7 +139,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Api.GetApiKeyAsync(); // cache the key so the recent tiles' /images urls carry it
+        await Api.GetApiKeyAsync(); // cache the key so the recent/board tile /images urls carry it
+        _boards = await Api.GetBoardsAsync();
         await PollAsync();
         _timer = new Timer(_ => _ = InvokeAsync(PollAsync), null, 2000, 2000);
     }
@@ -116,6 +154,15 @@
         _recent = await Api.GetTvRecentAsync();
         StateHasChanged();
     }
+
+    // A board's mini preview for the rail — key-bearing /images urls, the same shape the TV draws.
+    private TvBoardDto Render(BoardDto board) => BoardRender.ToRenderModel(board, Api.ImageUrl);
+
+    // A recent board tile shows the live board name (a rename since the push is reflected), falling back to the
+    // label stored at push time when the board no longer exists.
+    private string RecentBoardName(TvRecentItemDto item) =>
+        _boards.FirstOrDefault(b => string.Equals(b.Id, item.Ref, StringComparison.OrdinalIgnoreCase))?.Name
+            ?? item.Label ?? item.Ref;
 
     private async Task OnFileChosen(InputFileChangeEventArgs e)
     {
@@ -171,19 +218,37 @@
         }
     }
 
-    private async Task Push(string file, string? label)
+    // Re-push a recent item — an image via /images, a board by id.
+    private async Task PushRecent(TvRecentItemDto item)
     {
         if (_busy) return;
         _busy = true;
         try
         {
-            if (await Api.ShowOnTvAsync(file, label, L["tv.toast.shown"]))
+            var ok = item.Kind == "board"
+                ? await Api.ShowBoardOnTvAsync(item.Ref, item.Label, L["tv.toast.shown"])
+                : await Api.ShowOnTvAsync(item.Ref, item.Label, L["tv.toast.shown"]);
+            if (ok) await ForcePollAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    // Keyboard activation for the role="button" rail tiles (Enter / Space), matching a native button.
+    private async Task OnBoardKey(KeyboardEventArgs e, string id)
+    {
+        if (e.Key is "Enter" or " ") await PushBoard(id, null);
+    }
+
+    private async Task PushBoard(string id, string? label)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            if (await Api.ShowBoardOnTvAsync(id, label, L["tv.toast.shown"]))
                 await ForcePollAsync();
         }
-        finally
-        {
-            _busy = false;
-        }
+        finally { _busy = false; }
     }
 
     private async Task ClearTv()

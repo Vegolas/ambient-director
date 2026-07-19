@@ -1,15 +1,28 @@
 namespace AmbientDirector.Api.Contracts;
 
-// Wire DTOs for the /tv endpoints. The internal TvContent carries the stored image file name; the panel and
-// the TV never see it — they get a ready-to-fetch url instead (mirror these by hand in the UI's Contracts/
-// per the project's duplicated-DTO convention).
+// Wire DTOs for the /tv endpoints. The internal TvContent carries the stored image file name / board id; the
+// panel and the TV never see raw file names on the content path — they get ready-to-fetch urls instead (image
+// refs are pre-resolved to the gate-validated /tv/content/* routes). Mirror these by hand in the UI's
+// Contracts/ per the project's duplicated-DTO convention.
 
-// GET /tv/state response. Content is null when the screen is cleared. Url points at /tv/content/current with
-// the current revision as a cache-buster, so a swapped image is fetched fresh without a Cache-Control dance.
-public record TvContentDto(string Kind, string Url, string? Label);
+// GET /tv/state content. For kind "image", Url points at /tv/content/current (with the current revision as a
+// cache-buster) and Board is null. For kind "board", Url is null and Board carries the full render model.
+public record TvContentDto(string Kind, string? Url, string? Label, TvBoardDto? Board = null);
 
 public record TvStateDto(long Rev, TvContentDto? Content);
 
-// One entry of GET /tv/show/recent (a protected, panel-only convenience). Exposes the stored File so the
-// panel can re-push it (POST /tv/show?image=File) and preview it via /images/{File} (the panel holds the key).
-public record TvRecentItemDto(string Kind, string File, string? Label, DateTimeOffset PushedAtUtc);
+// Render model for kind=board — everything the key-free TV needs to draw the layout. Image refs are already
+// resolved to the gate-validated /tv/content/board/{name} route (with ?rev= as a cache-buster, like
+// /tv/content/current), so the TV never touches the general /images route. BackgroundColor is the stored
+// "#RRGGBB" (or null → renderer default). Elements are in paint order (index 0 = bottom).
+public record TvBoardDto(string? BackgroundColor, string? BackgroundUrl, List<TvBoardElementDto> Elements);
+
+// One element of a board's render model. For kind "image", Url is the /tv/content/board/{name} route and the
+// text fields are null; for kind "text", Url is null and Text/Color/Size/Align carry the content. Geometry is
+// percent-of-stage (see Models/Board.cs).
+public record TvBoardElementDto(string Kind, double X, double Y, double W, double H,
+    string? Url, string? Text, string? Color, double? Size, string? Align);
+
+// One entry of GET /tv/show/recent (a protected, panel-only convenience). Exposes the raw Ref (a stored image
+// file name for kind "image", a board id for kind "board") so the panel can re-push it (POST /tv/show).
+public record TvRecentItemDto(string Kind, string Ref, string? Label, DateTimeOffset PushedAtUtc);

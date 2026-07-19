@@ -1,0 +1,171 @@
+@page "/boards"
+@implements IDisposable
+@inject ApiClient Api
+@inject UiState Ui
+@inject ViewTransition Vt
+@inject Localizer L
+
+@* Boards (Tablice): composable player-facing TV layouts. This list mirrors Screens.razor — a header-search
+   filter, an inline create panel, a card grid with a 16:9 mini preview per board, and a ghost "new" card.
+   A board owns no light/music/sound state; it's just what appears on the shared table screen via /tv. *@
+
+<PageTitle>Ambient Director — @L["boards.title"]</PageTitle>
+
+<div class="page-head">
+    <h1>@L["boards.title"]</h1>
+    @if (_boards is not null)
+    {
+        <span class="count">@L.Plural("boards.savedCount", _boards.Count)</span>
+    }
+</div>
+
+@if (_creating)
+{
+    <div class="panel">
+        <div class="field" style="margin-bottom:0">
+            <label for="board-name">@L["boards.nameLabel"]</label>
+            <input id="board-name" type="text" value="@_name" @oninput="e => _name = e.Value?.ToString() ?? string.Empty"
+                   placeholder='@L["boards.namePlaceholder"]' />
+        </div>
+        <p class="hint" style="margin-top:0.6rem">@L["boards.createHint"]</p>
+        <div class="btn-row" style="margin-top:0.6rem">
+            <button class="btn btn--primary" @onclick="Create" disabled="@_busy">@L["boards.createBtn"]</button>
+            <button class="btn" @onclick="() => _creating = false" disabled="@_busy">@L["common.cancel"]</button>
+        </div>
+    </div>
+}
+
+@if (_boards is null)
+{
+    <p class="empty-note">@L["boards.loading"]</p>
+}
+else
+{
+    var shown = _boards.Where(Matches).ToList();
+    @if (_boards.Count == 0 && !_creating)
+    {
+        <p class="empty-note">@L["boards.emptyNote"]</p>
+    }
+    <div class="board-grid">
+        @foreach (var (board, index) in shown.Select((b, i) => (b, i)))
+        {
+            @* The preview/name area is a role="button" div (not a <button>): BoardCanvas renders block-level
+               divs, which can't validly nest inside a <button>. Show on TV is a real button in its own row. *@
+            <div class="board-card" style="animation-delay:@(index * 55)ms">
+                <div class="board-card__open" role="button" tabindex="0"
+                     @onclick="() => Open(board.Id)" @onkeydown="e => OnCardKey(e, board.Id)">
+                    <div class="board-card__preview">
+                        <BoardCanvas Model="Render(board)" />
+                    </div>
+                    <div class="board-card__name">@board.Name</div>
+                    <div class="board-card__count">@L.Plural("boards.elementCount", ElementCount(board))</div>
+                </div>
+                <div class="board-card__actions">
+                    <button class="btn btn--small" @onclick="() => Show(board)" disabled="@_busy">
+                        <Icon Name="tv" /> @L["boards.showOnTv"]
+                    </button>
+                </div>
+            </div>
+        }
+        @if (!Searching)
+        {
+            <button class="board-card board-card--new" @onclick="NewBoard">
+                <span class="scene-emoji"><Icon Name="add" /></span>
+                <span class="scene-name">@L["boards.newBoard"]</span>
+            </button>
+        }
+    </div>
+    @if (Searching && shown.Count == 0)
+    {
+        <p class="empty-note">@L.Format("boards.noMatch", Ui.SearchQuery)</p>
+    }
+    else if (_boards.Count > 0)
+    {
+        <p class="hint" style="margin-top:1rem">@L["boards.tapHint"]</p>
+    }
+}
+
+@code {
+    private List<BoardDto>? _boards;
+    private bool _creating;
+    private bool _busy;
+    private string _name = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Ui.SearchChanged += OnSearchChanged;
+        await Api.GetApiKeyAsync(); // cache the key so preview image urls carry it
+        _boards = await Api.GetBoardsAsync();
+    }
+
+    private bool Searching => !string.IsNullOrWhiteSpace(Ui.SearchQuery);
+
+    // Match the header search against the board's name and its id.
+    private bool Matches(BoardDto board)
+    {
+        var q = Ui.SearchQuery;
+        return string.IsNullOrWhiteSpace(q)
+            || board.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || board.Id.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnSearchChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Ui.SearchChanged -= OnSearchChanged;
+
+    // Build the render model for a card's mini preview — key-bearing /images urls, the same shape the TV draws.
+    private TvBoardDto Render(BoardDto board) => BoardRender.ToRenderModel(board, Api.ImageUrl);
+
+    private static int ElementCount(BoardDto board) => board.Elements?.Count ?? 0;
+
+    private Task Open(string id) => Vt.NavigateAsync($"boards/{id}");
+
+    // Keyboard activation for the role="button" card (Enter / Space), matching a native button.
+    private async Task OnCardKey(KeyboardEventArgs e, string id)
+    {
+        if (e.Key is "Enter" or " ") await Open(id);
+    }
+
+    private void NewBoard()
+    {
+        _creating = true;
+        _name = "";
+    }
+
+    private async Task Show(BoardDto board)
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await Api.ShowBoardOnTvAsync(board.Id, null, L["tv.toast.shown"]); }
+        finally { _busy = false; }
+    }
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            Ui.ReportError(L["boards.toast.nameFirst"]);
+            return;
+        }
+        var id = SceneNaming.MakeUnique(SceneNaming.Slugify(_name), _boards?.Select(b => b.Id).ToList() ?? []);
+        if (string.IsNullOrEmpty(id))
+        {
+            Ui.ReportError(L["boards.toast.badId"]);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // Persist a minimal board, then drop straight into the editor to lay it out.
+            var (_, error) = await Api.SaveBoardAsync(id, new BoardEdit { Id = id, Name = _name.Trim() });
+            if (error is not null)
+            {
+                Ui.ReportError(error);
+                return;
+            }
+            await Vt.NavigateAsync($"boards/{id}");
+        }
+        finally { _busy = false; }
+    }
+}
