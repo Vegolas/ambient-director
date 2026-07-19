@@ -1,21 +1,22 @@
 namespace AmbientDirector.Api.Services;
 
 /// <summary>One piece of content the GM has pushed to the player-facing "/tv" display. Ephemeral (held only
-/// in <see cref="TvState"/>, never persisted). <see cref="File"/> is a stored image file name resolved
-/// through <see cref="ImageFileStorage"/> — never a path or URL. <see cref="Kind"/> is always "image" for the
-/// MVP (PDF pages and a lite-VTT map are the documented growth path — issue #80).</summary>
-public record TvContent(string Kind, string File, string? Label, DateTimeOffset PushedAtUtc);
+/// in <see cref="TvState"/>, never persisted). <see cref="Ref"/> is what the content points at: for
+/// <see cref="Kind"/> "image" it is a stored image file name resolved through <see cref="ImageFileStorage"/>
+/// (never a path or URL); for "board" it is a persisted <see cref="Models.Board"/> id. (PDF pages import as
+/// ordinary images, so they ride the "image" kind — issue #88.)</summary>
+public record TvContent(string Kind, string Ref, string? Label, DateTimeOffset PushedAtUtc);
 
 /// <summary>Singleton holding what is currently on the single shared player-facing display, plus a short
 /// history of recently pushed content so the panel can re-push quickly after a reload. Ephemeral like
 /// <see cref="CurrentState"/> — survives navigation, not a restart. Thread-safe (lock), like the other
-/// singletons. <see cref="Rev"/> starts at 1 and increments on every show/clear; the TV polls
+/// singletons. <see cref="Rev"/> starts at 1 and increments on every show/clear/edit; the TV polls
 /// <c>/tv/state</c> and always trusts the server's revision (it resets to 1 on a restart, so pollers must
 /// not assume it only grows).</summary>
 public class TvState
 {
-    // Newest-first history the panel offers as "re-push" tiles; deduped by file so re-pushing an image just
-    // moves it to the front. Kept small — it's a convenience, not a gallery.
+    // Newest-first history the panel offers as "re-push" tiles; deduped by (kind, ref) so re-pushing the same
+    // thing just moves it to the front. Kept small — it's a convenience, not a gallery.
     private const int RecentCapacity = 12;
 
     private readonly Lock _lock = new();
@@ -23,16 +24,17 @@ public class TvState
     private TvContent? _current;
     private readonly List<TvContent> _recent = [];
 
-    /// <summary>Push an image (by stored file name) to the display. Bumps the revision and records it at the
-    /// front of Recent (deduped by file). Returns the new revision.</summary>
-    public long Show(string file, string? label)
+    /// <summary>Push content to the display: <paramref name="kind"/> "image" (a stored file name) or "board"
+    /// (a board id). Bumps the revision and records it at the front of Recent (deduped by the (kind, ref)
+    /// pair). Returns the new revision.</summary>
+    public long Show(string kind, string @ref, string? label)
     {
         lock (_lock)
         {
-            var content = new TvContent("image", file, label, DateTimeOffset.UtcNow);
+            var content = new TvContent(kind, @ref, label, DateTimeOffset.UtcNow);
             _current = content;
             _rev++;
-            _recent.RemoveAll(c => string.Equals(c.File, file, StringComparison.OrdinalIgnoreCase));
+            _recent.RemoveAll(c => IsSame(c, kind, @ref));
             _recent.Insert(0, content);
             if (_recent.Count > RecentCapacity)
                 _recent.RemoveRange(RecentCapacity, _recent.Count - RecentCapacity);
@@ -48,6 +50,37 @@ public class TvState
             _current = null;
             _rev++;
             return _rev;
+        }
+    }
+
+    /// <summary>If the board with this id is the one currently shown, bump the revision so an open TV re-fetches
+    /// it within one poll (the codebase's real-time idiom — a live edit reaches the display via the rev bump,
+    /// no SSE). Returns true when the shown board matched. Does nothing for a not-shown board.</summary>
+    public bool TouchBoard(string id)
+    {
+        lock (_lock)
+        {
+            if (_current is { Kind: "board" } c && string.Equals(c.Ref, id, StringComparison.OrdinalIgnoreCase))
+            {
+                _rev++;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>Scrub a deleted board from the display: drop any Recent entries for it and, if it is the one
+    /// currently shown, clear the display. Bumps the revision if anything changed (mirrors the sound-delete
+    /// scrub — nothing dangles after a delete).</summary>
+    public void ForgetBoard(string id)
+    {
+        lock (_lock)
+        {
+            var removed = _recent.RemoveAll(c => IsSame(c, "board", id));
+            var wasShown = _current is { Kind: "board" } c &&
+                           string.Equals(c.Ref, id, StringComparison.OrdinalIgnoreCase);
+            if (wasShown) _current = null;
+            if (removed > 0 || wasShown) _rev++;
         }
     }
 
@@ -71,4 +104,8 @@ public class TvState
     {
         get { lock (_lock) { return [.. _recent]; } }
     }
+
+    private static bool IsSame(TvContent c, string kind, string @ref) =>
+        string.Equals(c.Kind, kind, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(c.Ref, @ref, StringComparison.OrdinalIgnoreCase);
 }

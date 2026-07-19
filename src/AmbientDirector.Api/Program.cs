@@ -161,6 +161,7 @@ builder.Services.AddSingleton(sp => new PdfImporter(imagesPath, sp.GetRequiredSe
 
 builder.Services.AddSingleton<EventStore>();
 builder.Services.AddSingleton<ScreenStore>();
+builder.Services.AddSingleton<BoardStore>();
 builder.Services.AddSingleton<LightFxStore>();
 
 // UI translations: JSON files on disk (community-editable), with English embedded as the fallback.
@@ -331,6 +332,7 @@ app.Use(async (context, next) =>
         (path.StartsWithSegments("/scenes") || path.StartsWithSegments("/lights") ||
          path.StartsWithSegments("/music") || path.StartsWithSegments("/sounds") ||
          path.StartsWithSegments("/events") || path.StartsWithSegments("/screens") ||
+         path.StartsWithSegments("/boards") ||
          path.StartsWithSegments("/lightfx") || path.StartsWithSegments("/images") ||
          path.StartsWithSegments("/setup") || path.StartsWithSegments("/logs") ||
          path.StartsWithSegments("/diagnostics") || path.StartsWithSegments("/mcp") ||
@@ -360,6 +362,7 @@ app.MapMusicEndpoints();
 app.MapSoundEndpoints();
 app.MapEventEndpoints();
 app.MapScreenEndpoints();
+app.MapBoardEndpoints();
 app.MapLightFxEndpoints();
 app.MapImageEndpoints();
 app.MapSetupEndpoints();

@@ -105,6 +105,7 @@ public class ApiKeyGateTests
     [InlineData("/sounds/library/search?query=door")]  // #73 Freesound library
     [InlineData("/events/list")]
     [InlineData("/screens/list")]
+    [InlineData("/boards/list")]                        // Phase 2 boards
     [InlineData("/lightfx/list")]
     [InlineData("/images/sources")]
     [InlineData("/setup/config")]
@@ -133,6 +134,7 @@ public class ApiKeyGateTests
     [InlineData("/health")]
     [InlineData("/tv/state")]
     [InlineData("/tv/content/current")]
+    [InlineData("/tv/content/board/x.png")]            // per-name board image route: 404s keylessly, never 401
     public async Task Open_surface_is_reachable_without_key(string path)
     {
         using var factory = new ApiFactory(apiKey: Key);

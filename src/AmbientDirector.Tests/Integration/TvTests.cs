@@ -129,8 +129,8 @@ public class TvTests
 
         var recent = await client.GetFromJsonAsync<JsonElement>("/tv/show/recent");
         Assert.Equal(2, recent.GetArrayLength());
-        Assert.Equal(first, recent[0].GetProperty("file").GetString());
-        Assert.Equal(second, recent[1].GetProperty("file").GetString());
+        Assert.Equal(first, recent[0].GetProperty("ref").GetString());
+        Assert.Equal(second, recent[1].GetProperty("ref").GetString());
     }
 
     // ---- The access-control matrix (the flagged decision on issue #80) ----

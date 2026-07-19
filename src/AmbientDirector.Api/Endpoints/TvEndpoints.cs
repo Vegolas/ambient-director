@@ -10,46 +10,120 @@ public static class TvEndpoints
     {
         // Nothing is mapped at the bare "/tv" path: the Blazor panel's full-screen player display lives there,
         // so a full-page load of /tv must fall through to index.html (same trick as /sounds and /screens).
-        // Access control: /tv, /tv/state and /tv/content/current stay OUTSIDE the API-key gate so players'
-        // shared screens never carry the admin key — the only key-free data is the image the GM deliberately
-        // pushed. The push commands (/tv/show*, /tv/clear) ARE gated (see IsProtectedPath in Program.cs).
+        // Access control: /tv, /tv/state and the read-only /tv/content/* streams stay OUTSIDE the API-key gate
+        // so players' shared screens never carry the admin key — the only key-free data is what the GM
+        // deliberately pushed (an image, or a board and the images that board references). The push commands
+        // (/tv/show*, /tv/clear) ARE gated (see IsProtectedPath in Program.cs).
         var tv = app.MapGroup("/tv");
 
         // Plain fast poll, mirroring /assistant/state?rev=. The client sends its last-seen rev and always
         // trusts the authoritative rev echoed here (it resets to 1 on a restart, so no monotonic assumption);
-        // we keep it dead simple and return the full state every time. `state` comes first so `rev` can carry
-        // a default (required minimal-API parameters must precede optional ones).
-        tv.MapGet("/state", (TvState state, long rev = 0) =>
+        // we keep it dead simple and return the full state every time. `state`/`boards` come first so `rev`
+        // can carry a default (required minimal-API parameters must precede optional ones).
+        tv.MapGet("/state", async (TvState state, BoardStore boards, long rev = 0) =>
         {
             var (currentRev, content) = state.Snapshot();
-            return new TvStateDto(currentRev, content is null
-                ? null
-                : new TvContentDto(content.Kind, $"/tv/content/current?rev={currentRev}", content.Label));
+            if (content is null)
+                return new TvStateDto(currentRev, null);
+
+            if (content.Kind == "board")
+            {
+                var board = await boards.GetAsync(content.Ref);
+                if (board is null)
+                    // Self-healing projection: the shown board was deleted out from under us. Report empty
+                    // content WITHOUT mutating state — a GET must stay side-effect-free (a later push/clear or
+                    // the delete's own ForgetBoard is what bumps the rev).
+                    return new TvStateDto(currentRev, null);
+
+                var boardDto = new TvBoardDto(
+                    board.BackgroundColor,
+                    string.IsNullOrEmpty(board.BackgroundImage)
+                        ? null
+                        : $"/tv/content/board/{Uri.EscapeDataString(board.BackgroundImage)}?rev={currentRev}",
+                    [.. board.Elements.Select(e => new TvBoardElementDto(
+                        e.Kind, e.X, e.Y, e.W, e.H,
+                        // Image refs resolve to the gate-validated per-name board route; text fields pass through.
+                        e.Kind == "image" && !string.IsNullOrEmpty(e.Image)
+                            ? $"/tv/content/board/{Uri.EscapeDataString(e.Image)}?rev={currentRev}"
+                            : null,
+                        e.Kind == "text" ? e.Text : null,
+                        e.Kind == "text" ? e.Color : null,
+                        e.Kind == "text" ? e.Size : null,
+                        e.Kind == "text" ? e.Align : null))]);
+
+                // A board carries its render model in Content.Board; Content.Url is null (nothing to stream).
+                return new TvStateDto(currentRev, new TvContentDto("board", null, content.Label, boardDto));
+            }
+
+            // kind "image": Url points at /tv/content/current with the current rev as a cache-buster.
+            return new TvStateDto(currentRev,
+                new TvContentDto("image", $"/tv/content/current?rev={currentRev}", content.Label));
         });
 
         // Streams the bytes of the CURRENT image only (never an arbitrary name) — this is the one image the
-        // key-free display is allowed to see. 404 when nothing is shown or the file vanished from disk.
+        // key-free display is allowed to see. 404 when nothing is shown, when a BOARD is shown (a board's
+        // images are served per-name by /tv/content/board/{name} below), or when the file vanished from disk.
         tv.MapGet("/content/current", (TvState state, ImageFileStorage images) =>
         {
-            if (state.Current is not { } content)
+            if (state.Current is not { Kind: "image" } content)
                 return Results.NotFound();
-            var full = images.FullPathForName(content.File);
+            var full = images.FullPathForName(content.Ref);
             if (full is null || !File.Exists(full))
                 return Results.NotFound();
-            return Results.File(full, ImageFileStorage.ContentTypeFor(content.File));
+            return Results.File(full, ImageFileStorage.ContentTypeFor(content.Ref));
         });
 
-        // Push a prepared image/handout to the display. GET+POST so a Stream Deck "System → Website" button
-        // works. The name is validated inside FullPathForName (traversal-guarded) and must exist on disk.
-        tv.MapMethods("/show", EndpointHelpers.GetOrPost,
-            (string? image, string? label, TvState state, ImageFileStorage images) =>
+        // Streams one image referenced by the CURRENTLY SHOWN board. THIS IS THE KEY-FREE GATE INVARIANT: the
+        // open TV surface may serve ONLY content the currently-pushed board references — never the general
+        // /images route to keyless clients. 404 unless (a) a board is currently shown, (b) that board still
+        // exists, and (c) `name` is one of its ReferencedFiles(). The membership check runs BEFORE any disk
+        // access, so this route can never become a file-existence oracle for unreferenced images. Everything
+        // else is 404 (never 401 — a keyless TV must never need a key; not-found is the safe answer).
+        tv.MapGet("/content/board/{name}", async (string name, TvState state, ImageFileStorage images, BoardStore boards) =>
         {
-            var name = image?.Trim();
-            var full = string.IsNullOrEmpty(name) ? null : images.FullPathForName(name);
-            if (name is null || full is null || !File.Exists(full))
-                throw new ValidationException("error.tv.imageNotFound", name ?? "");
-            var rev = state.Show(name, string.IsNullOrWhiteSpace(label) ? null : label.Trim());
-            return Results.Ok(new { rev, image = name });
+            if (state.Current is not { Kind: "board" } content)
+                return Results.NotFound();
+            var board = await boards.GetAsync(content.Ref);
+            if (board is null)
+                return Results.NotFound();
+            if (!board.ReferencedFiles().Contains(name, StringComparer.OrdinalIgnoreCase))
+                return Results.NotFound();
+            // Only now touch the filesystem — FullPathForName also traversal-guards the name.
+            var full = images.FullPathForName(name);
+            if (full is null || !File.Exists(full))
+                return Results.NotFound();
+            return Results.File(full, ImageFileStorage.ContentTypeFor(name));
+        });
+
+        // Push a prepared image/handout OR a saved board to the display. GET+POST so a Stream Deck
+        // "System → Website" button works. Exactly one of ?image= / ?board= must be given.
+        tv.MapMethods("/show", EndpointHelpers.GetOrPost,
+            async (string? image, string? board, string? label, TvState state, ImageFileStorage images, BoardStore boards) =>
+        {
+            var imageName = image?.Trim();
+            var boardId = board?.Trim();
+            var hasImage = !string.IsNullOrEmpty(imageName);
+            var hasBoard = !string.IsNullOrEmpty(boardId);
+            if (hasImage == hasBoard) // both, or neither
+                throw new ValidationException("error.tv.showTarget");
+
+            var trimmedLabel = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
+
+            if (hasImage)
+            {
+                // The name is validated inside FullPathForName (traversal-guarded) and must exist on disk.
+                var full = images.FullPathForName(imageName!);
+                if (full is null || !File.Exists(full))
+                    throw new ValidationException("error.tv.imageNotFound", imageName!);
+                var rev = state.Show("image", imageName!, trimmedLabel);
+                return Results.Ok(new { rev, image = imageName });
+            }
+
+            var b = await boards.GetAsync(boardId!)
+                ?? throw new ValidationException("error.tv.boardNotFound", boardId!);
+            // Default the display label to the board's own name; store the canonical DB-cased id.
+            var boardRev = state.Show("board", b.Id, trimmedLabel ?? b.Name);
+            return Results.Ok(new { rev = boardRev, board = b.Id });
         });
 
         // Clear the display. GET+POST, like /show.
@@ -58,8 +132,8 @@ public static class TvEndpoints
 
         // Recently pushed content for the panel's re-push tiles. PROTECTED automatically: the path starts with
         // "/tv/show", which IsProtectedPath gates — folding it under /show keeps history off the open surface
-        // without adding another prefix rule. Panel-only, so it exposes the raw stored file names.
+        // without adding another prefix rule. Panel-only, so it exposes the raw stored ref (file name / board id).
         tv.MapGet("/show/recent", (TvState state) =>
-            state.Recent.Select(c => new TvRecentItemDto(c.Kind, c.File, c.Label, c.PushedAtUtc)));
+            state.Recent.Select(c => new TvRecentItemDto(c.Kind, c.Ref, c.Label, c.PushedAtUtc)));
     }
 }
