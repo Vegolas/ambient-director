@@ -99,6 +99,9 @@ var localesPath = Path.GetFullPath(builder.Configuration["Locales:Path"] ?? Path
 // resolved on-disk paths, so the endpoint reuses the exact values instead of re-resolving them.
 builder.Services.AddSingleton(new DiagnosticsInfo(DateTimeOffset.UtcNow, dbPath, soundsPath));
 
+// Backs GET /setup/backup — a one-tap download of a consistent SQLite snapshot (issue #110).
+builder.Services.AddSingleton(new DbBackupService(dbPath));
+
 builder.Services.AddSingleton<TuyaLightService>();
 builder.Services.AddSingleton<TuyaSetupService>();
 builder.Services.AddHttpClient<HueLightService>(client => client.Timeout = TimeSpan.FromSeconds(5));

@@ -190,6 +190,24 @@ public static class SetupEndpoints
             settings.MarkOnboardingDone();
             return new { show = false };
         });
+
+        // Download a backup of the SQLite database (issue #110) — the friendly alternative to copying the
+        // file by hand. Streams a consistent single-file snapshot (see DbBackupService) as an attachment; the
+        // temp file is deleted as the stream is disposed. GET (a plain export, like /diagnostics); the /setup
+        // key gate covers it. On-disk audio/image files live outside the DB and are not part of this backup.
+        setup.MapGet("/backup", (DbBackupService backup) =>
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "ambient-director-backup");
+            Directory.CreateDirectory(tempDir);
+            var tempPath = Path.Combine(tempDir, $"{Guid.NewGuid():N}.db");
+            backup.BackupTo(tempPath);
+
+            // DeleteOnClose removes the temp snapshot once Results.File disposes the stream after sending.
+            var stream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 4096, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
+            var fileName = $"ambient-director-backup-{DateTime.Now:yyyy-MM-dd-HHmmss}.db";
+            return Results.File(stream, "application/octet-stream", fileName);
+        });
     }
 
     // Spotify's dashboard only accepts plain-http redirect URIs on 127.0.0.1 (not "localhost"), and the

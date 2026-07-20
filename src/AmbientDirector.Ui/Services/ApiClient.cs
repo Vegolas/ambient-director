@@ -246,6 +246,36 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
     public Task<(List<DiscoveredTuyaDto>? Result, string? Error)> ScanTuyaAsync() =>
         FetchAsync<List<DiscoveredTuyaDto>>(HttpMethod.Get, "setup/scan?seconds=8");
 
+    /// <summary>Download a backup of the database (issue #110). Fetches the snapshot with the API key on the
+    /// header, then streams it into a browser download via JS interop — so the key never rides in a URL. The
+    /// filename comes from the server's Content-Disposition, falling back to a fixed name.</summary>
+    public async Task<bool> DownloadDbBackupAsync(string? okMessage = null)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, "setup/backup");
+            ui.SetConnected(true);
+            if (!response.IsSuccessStatusCode)
+            {
+                ui.ReportError(await ExtractProblemAsync(response));
+                return false;
+            }
+            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? "ambient-director-backup.db";
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var streamRef = new DotNetStreamReference(stream);
+            await js.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            if (okMessage is not null) ui.ReportOk(okMessage);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ReportTransportError(ex);
+            return false;
+        }
+    }
+
     /// <summary>Request with an explicit error channel — the settings wizard shows failures inline.</summary>
     private async Task<(T? Result, string? Error)> FetchAsync<T>(HttpMethod method, string path, object? body = null)
     {
