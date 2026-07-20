@@ -59,6 +59,16 @@ else
         </div>
     </div>
 
+    <SectionHeading>@L["settings.backup.title"]</SectionHeading>
+    <div class="panel">
+        <p class="hint" style="margin-top:0">@L["settings.backup.hint"]</p>
+        <div class="btn-row" style="margin-top:0.6rem">
+            <button class="btn" @onclick="DownloadBackup" disabled="@_backingUp">
+                <Icon Name="download" /> @(_backingUp ? L["settings.backup.working"] : L["settings.backup.downloadBtn"])
+            </button>
+        </div>
+    </div>
+
     <SectionHeading>@L["settings.developer.title"]</SectionHeading>
     <div class="panel">
         <div class="chip-row" style="margin-top:0">
@@ -214,6 +224,7 @@ else
     private List<HueLightDto>? _hueLights;
     private string? _apiKeyInput;
     private bool _showHueAdd;
+    private bool _backingUp;
 
     private async Task OnLanguageChanged(ChangeEventArgs e)
     {
@@ -312,6 +323,20 @@ else
     {
         await Api.SetApiKeyAsync(_apiKeyInput);
         Ui.ReportOk(L["settings.toast.apiKeySaved"]);
+    }
+
+    private async Task DownloadBackup()
+    {
+        if (_backingUp) return;
+        _backingUp = true;
+        try
+        {
+            await Api.DownloadDbBackupAsync(L["settings.toast.backupDownloaded"]);
+        }
+        finally
+        {
+            _backingUp = false;
+        }
     }
 
     private async Task ResetMenuOrder()

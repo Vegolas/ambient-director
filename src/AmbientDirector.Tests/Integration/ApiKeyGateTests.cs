@@ -113,6 +113,7 @@ public class ApiKeyGateTests
     [InlineData("/setup/config")]
     [InlineData("/setup/freesound/config")]            // #73
     [InlineData("/setup/onboarding")]                  // #75 onboarding
+    [InlineData("/setup/backup")]                      // #110 in-app DB backup download
     [InlineData("/logs/list")]
     [InlineData("/diagnostics")]
     [InlineData("/assistant/state")]
