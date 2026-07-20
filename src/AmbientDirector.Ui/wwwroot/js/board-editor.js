@@ -154,9 +154,14 @@ window.rpgBoardEditor = (() => {
             restore(a); // hand authority back to Blazor before reporting (see restore()).
 
             if (travel < 4) {
-                // A tap: selection already fired on pointerdown, so report no geometry. A second tap on the same
-                // box within 350ms is a double-tap. We roll our own (mouse + touch) rather than use dblclick,
-                // which iOS Safari does not reliably fire on touch.
+                // A tap (not a drag): selection already fired on pointerdown, so report no geometry. Reveal the
+                // matching list row HERE, at tap-time — never on the pointerdown that STARTS a drag: a mid-gesture
+                // smooth-scroll would shift the stage under our cached overlay rect (and the portrait preview isn't
+                // sticky below 900px), making the dragged element visibly jump. A drag-commit (below) never reveals
+                // — the user is manipulating on the canvas and the row inputs update anyway.
+                // A second tap on the same box within 350ms is a double-tap; we roll our own (mouse + touch)
+                // rather than use dblclick, which iOS Safari does not reliably fire on touch.
+                revealRow(a.index);
                 const now = performance.now();
                 if (state.lastTap && state.lastTap.index === a.index && (now - state.lastTap.time) < 350) {
                     state.dotNetRef.invokeMethodAsync("OnCanvasTextTap", a.index);

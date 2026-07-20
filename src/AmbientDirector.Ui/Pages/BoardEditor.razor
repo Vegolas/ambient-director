@@ -306,19 +306,17 @@ else
 
     // ---------- selection / direct manipulation (BoardCanvasEditor) ----------
 
-    // Canvas/keyboard-originated selection: also scroll the matching list row into view. A row-originated
-    // selection (SelectFromRow) deliberately does NOT scroll — the user is already looking at that row.
-    private async Task HandleSelect(int? i)
+    // Canvas/keyboard-originated selection. The matching list row is revealed at TAP-time inside board-editor.js
+    // (not here): selecting by STARTING A DRAG must never smooth-scroll the page mid-gesture — a scroll shifts the
+    // stage under the gesture's cached overlay rect (and the portrait preview isn't sticky below 900px), which
+    // would make the dragged element visibly jump. A row-originated selection (SelectFromRow) never scrolls either
+    // — the user is already looking at that row.
+    private void HandleSelect(int? i)
     {
         if (i is { } idx && idx >= 0 && idx < _edit.Elements.Count)
-        {
             _selected = _edit.Elements[idx];
-            await JS.InvokeVoidAsync("rpgBoardEditor.revealRow", idx);
-        }
         else
-        {
             _selected = null;
-        }
     }
 
     private void SelectFromRow(BoardElementEdit el) => _selected = el;
