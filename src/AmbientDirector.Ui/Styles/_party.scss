@@ -158,13 +158,15 @@
 }
 
 /* Themed glyph pips (#120 request): HP a red broken heart, Stress a dark ("black") heart, Armor a broken
-   shield, Hope a white diamond. The glyph carries the meaning, so these drop the dot's disc/border. Empty = a
-   dim ghost of the glyph; filled = the track's content colour (exempt from the one-accent chrome rule, like
-   scene colours). Sized in cqh like the dots so they scale identically from a list card to the full TV. */
-.bparty__pip--hp,
-.bparty__pip--stress,
-.bparty__pip--armor,
-.bparty__pip--hope {
+   shield, Hope a white diamond. The glyph carries the meaning, so these drop the dot's disc/border entirely —
+   no backing behind the icon. The doubled class (.bparty__pip.bparty__pip--x) is deliberate: it must out-
+   specify `.bparty__pip.is-on` above, or a FILLED glyph pip would paint that rule's disc behind the icon.
+   Empty = a dim ghost of the glyph; filled = the track's content colour (exempt from the one-accent chrome
+   rule, like scene colours). Sized in cqh like the dots so they scale identically from a list card to the TV. */
+.bparty__pip.bparty__pip--hp,
+.bparty__pip.bparty__pip--stress,
+.bparty__pip.bparty__pip--armor,
+.bparty__pip.bparty__pip--hope {
   background: none;
   border: none;
 }
