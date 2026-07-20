@@ -129,6 +129,86 @@
 }
 .bparty__pip.is-on { background: rgba(255, 255, 255, .92); } /* filled */
 
+/* ---- enemies board element — BoardCanvas kind="enemies" (container units, lives here beside bparty
+   because it is the same live-roster idiom). A vertical stack of enemy cards; the spotlight (boss) card is
+   red-bordered with a chip and a slightly larger name. All sizes in cqh/cqw so it scales identically from a
+   list card to the full TV. The reds and card colours below are PLAYER-FACING CONTENT colours taken straight
+   from the #120 design mock — deliberately NOT the one blue chrome accent, exempt like scene colours. ---- */
+
+.benemies {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6cqh;
+  overflow: hidden;
+  font-family: var(--font);
+}
+.benemies__card {
+  display: flex;
+  flex-direction: column;
+  gap: 1cqh;
+  padding: 1.4cqh 1.4cqw;
+  /* Solid design surface (mock: #1C2129 / border #2E3542) — the enemy cards read as opaque panels, unlike the
+     bparty player cards that float translucently over board art. */
+  background: #1C2129;
+  border: 1px solid #2E3542;
+  border-radius: 1.8cqh;
+}
+/* Boss highlight: red border + emphasised name + the SPOTLIGHT chip. */
+.benemies__card--spotlight { border-color: #FF4D2E; }
+
+.benemies__namerow {
+  display: flex;
+  align-items: center;
+  gap: 1.2cqw;
+}
+.benemies__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 3.4cqh; /* matches .bparty__pname */
+  line-height: 1.1;
+  color: #eef2f8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.benemies__card--spotlight .benemies__name { font-size: 4cqh; } /* slightly larger for the boss */
+.benemies__chip {
+  flex: 0 0 auto;
+  padding: .4cqh 1cqw;
+  background: #000;
+  color: #FF4D2E;
+  font-size: 1.6cqh;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  border-radius: .8cqh;
+}
+.benemies__crows {
+  display: flex;
+  flex-direction: column;
+  gap: .8cqh;
+}
+.benemies__crow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2cqw;
+  line-height: 1;
+}
+/* Enemy pips are red (content colour from the design), reusing the shared .bparty__pip markup emitted by
+   BoardCanvas's counterValue fragment — so only the colours change, sizing stays consistent with bparty. */
+.benemies .bparty__pip {
+  background: #12151B;
+  border: 1px solid #2E3542;
+}
+.benemies .bparty__pip.is-on {
+  background: #FF4D2E;
+  border-color: #FF4D2E;
+}
+
 /* ---- (b) panel tracker (Party.razor) + editor (PartyEditor.razor) ---- */
 
 /* players grid of cards */
@@ -153,6 +233,17 @@
   align-items: center;
   gap: var(--s-3);
   padding-right: var(--hit-min); /* room for the edit affordance */
+}
+
+/* Spotlight (boss) marker in the tracker: a red-tinted card border, matching the TV's benemies spotlight —
+   #FF4D2E is a player-facing CONTENT colour from the #120 design, deliberately not the blue chrome accent. */
+.party-card--spotlight { border-color: #FF4D2E; }
+
+/* Spotlight toggle button on an enemy card; the pressed (boss-on) state uses the same content red. */
+.party-spotlight.is-on {
+  background: #FF4D2E;
+  border-color: #FF4D2E;
+  color: #fff;
 }
 .party-portrait {
   flex: 0 0 auto;
@@ -349,3 +440,14 @@
 /* player editor column layout */
 .party-editor { display: flex; flex-direction: column; gap: var(--s-3); }
 .party-order { max-width: 140px; }
+
+/* enemy editor: the Spotlight (boss) checkbox row (mirrors the scene sound-picker checkbox sizing). */
+.party-check {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  user-select: none;
+  cursor: pointer;
+
+  input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); flex: 0 0 auto; }
+}
