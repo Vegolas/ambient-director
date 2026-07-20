@@ -22,10 +22,19 @@
             {
                 var pipMax = Math.Min(c.Max ?? 0, PipCap);
                 var filled = Math.Clamp(c.Value, 0, pipMax);
+                var shape = PipShape(c.Label);
+                @* A known Daggerheart track (shape != null) renders a themed glyph — broken heart (HP), heart
+                   (Stress), broken shield (Armor), diamond (Hope); coloured filled / dim-empty in CSS. Every
+                   other track (unknown/custom, and Fear) keeps the plain dot in the --pip track colour. *@
                 <span class="bparty__pips" style="--pip:@PipColor(c.Label)">
                     @for (var i = 0; i < pipMax; i++)
                     {
-                        <span class="bparty__pip@(i < filled ? " is-on" : "")"></span>
+                        <span class="@PipClass(shape, i < filled)">
+                            @if (shape is not null)
+                            {
+                                <svg viewBox="0 0 256 256" aria-hidden="true">@((MarkupString)PipGlyph(shape))</svg>
+                            }
+                        </span>
                     }
                 </span>
             }
@@ -180,19 +189,47 @@
     private static bool IsPips(TvPartyCounterDto c) =>
         string.Equals(c.Style, "pips", StringComparison.Ordinal) || (c.Style is null && c.Max is >= 1 and <= PipCap);
 
-    // Filled-pip colour per counter, keyed by label — the #120 "TV Board" design's Daggerheart track palette
-    // (HP/Stress/Armor/Hope), plus Fear for the table strip. These are PLAYER-FACING CONTENT colours, exempt
-    // from the one blue chrome accent like scene colours. An unknown/custom track falls back to a soft neutral.
-    // Shared by the party and enemies elements, so an enemy's HP/Stress pips read the same as a hero's (per the
-    // mock — red is reserved for the spotlight border/chip, not the pips).
-    private static string PipColor(string label) => label.Trim().ToLowerInvariant() switch
+    // Themed pip glyph per Daggerheart track (keyed by label): HP a broken heart, Stress a (black) heart, Armor
+    // a broken shield, Hope a diamond. Null → the track has no glyph and renders as a plain dot (unknown/custom
+    // tracks, and Fear on the table strip). Shared by the party and enemies elements, so an enemy's HP/Stress
+    // glyphs read the same as a hero's (per the #120 request); the spotlight red stays on the card, not the pips.
+    // The pip's CSS classes: the base, the optional per-shape modifier (glyph tracks), and is-on when filled.
+    private static string PipClass(string? shape, bool on) =>
+        "bparty__pip" + (shape is null ? "" : $" bparty__pip--{shape}") + (on ? " is-on" : "");
+
+    private static string? PipShape(string label) => label.Trim().ToLowerInvariant() switch
     {
-        "hp" or "health" => "#ff6e7e",
-        "stress" => "#ffd21a",
-        "armor" or "armour" => "#eef2f8",
-        "hope" => "#2563ff",
-        "fear" => "#ff4d2e",
-        _ => "#cfd6e2",
+        "hp" or "health" => "hp",
+        "stress" => "stress",
+        "armor" or "armour" => "armor",
+        "hope" => "hope",
+        _ => null,
+    };
+
+    // Dot colour for pips WITHOUT a glyph (unknown/custom tracks render neutral; Fear reads red). Glyph pips are
+    // coloured per shape in CSS, not here. Content colours, exempt from the one blue chrome accent like scene colours.
+    private static string PipColor(string label) =>
+        string.Equals(label.Trim(), "fear", StringComparison.OrdinalIgnoreCase) ? "#ff4d2e" : "#cfd6e2";
+
+    // Inner SVG (viewBox 0 0 256 256) for each themed pip glyph. The "broken" HP/Armor glyphs cut a jagged crack
+    // with a fill-rule:evenodd hole so the card shows through (no hardcoded background). Hand-authored simple
+    // shapes — they read at pip size (~20px) and can't ship a malformed Phosphor path.
+    private const string HeartGlyph =
+        "<path d=\"M128,222 C128,222 26,158 26,90 C26,58 50,34 82,34 C104,34 120,48 128,64 C136,48 152,34 174,34 C206,34 230,58 230,90 C230,158 128,222 128,222 Z\"/>";
+    private const string BrokenHeartGlyph =
+        "<path fill-rule=\"evenodd\" d=\"M128,222 C128,222 26,158 26,90 C26,58 50,34 82,34 C104,34 120,48 128,64 C136,48 152,34 174,34 C206,34 230,58 230,90 C230,158 128,222 128,222 Z M132,62 L112,116 L138,128 L114,182 L128,218 L142,182 L118,128 L144,116 L124,62 Z\"/>";
+    private const string BrokenShieldGlyph =
+        "<path fill-rule=\"evenodd\" d=\"M128,26 C128,26 70,48 48,54 C48,120 80,190 128,226 C176,190 208,120 208,54 C186,48 128,26 128,26 Z M132,44 L112,110 L138,122 L114,178 L128,212 L142,178 L118,122 L144,110 L124,44 Z\"/>";
+    private const string DiamondGlyph =
+        "<rect x=\"70\" y=\"70\" width=\"116\" height=\"116\" rx=\"14\" transform=\"rotate(45 128 128)\"/>";
+
+    private static string PipGlyph(string shape) => shape switch
+    {
+        "hp" => BrokenHeartGlyph,
+        "stress" => HeartGlyph,
+        "armor" => BrokenShieldGlyph,
+        "hope" => DiamondGlyph,
+        _ => "",
     };
 
     // The portrait fallback: the first (rune-safe, so an emoji name doesn't split a surrogate) letter of the name.
