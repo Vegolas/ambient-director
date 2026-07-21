@@ -695,6 +695,70 @@ public class ApiClient(HttpClient http, IJSRuntime js, UiState ui)
     public Task<(List<PdfImportedPageDto>? Result, string? Error)> ImportPdfPagesAsync(string id, List<int> pages) =>
         FetchAsync<List<PdfImportedPageDto>>(HttpMethod.Post, $"images/pdf/{Uri.EscapeDataString(id)}/import", new { pages });
 
+    // ---------- share (export / import content packs, issue #111) ----------
+
+    /// <summary>Download a shareable .zip pack for one entity. GETs share/{kind}/{id}/export with the key on
+    /// the header, then streams it into a browser download (so the key never rides in a URL). Toasts failures.</summary>
+    public async Task<bool> ExportPackAsync(string kind, string id, string? okMessage = null)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get,
+                $"share/{Uri.EscapeDataString(kind)}/{Uri.EscapeDataString(id)}/export");
+            ui.SetConnected(true);
+            if (!response.IsSuccessStatusCode)
+            {
+                ui.ReportError(await ExtractProblemAsync(response));
+                return false;
+            }
+            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? $"{id}-{kind}.zip";
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var streamRef = new DotNetStreamReference(stream);
+            await js.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            if (okMessage is not null) ui.ReportOk(okMessage);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ReportTransportError(ex);
+            return false;
+        }
+    }
+
+    /// <summary>Upload a pack (multipart) for inspection — returns what's inside + the light keys to remap,
+    /// without committing anything. 100 MB matches the server cap.</summary>
+    public async Task<(ShareInspectResult? Result, string? Error)> InspectPackAsync(IBrowserFile file)
+    {
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            var part = new StreamContent(file.OpenReadStream(100L * 1024 * 1024));
+            part.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+            content.Add(part, "file", file.Name);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "share/import/inspect") { Content = content };
+            await AddHeadersAsync(request);
+
+            using var response = await http.SendAsync(request);
+            ui.SetConnected(true);
+            if (!response.IsSuccessStatusCode)
+                return (null, await ExtractProblemAsync(response));
+            return (await response.Content.ReadFromJsonAsync<ShareInspectResult>(Json), null);
+        }
+        catch (Exception ex)
+        {
+            ui.SetConnected(false);
+            return (null, $"Upload failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Commit a previously-inspected pack with the chosen light mapping; returns the created ids /
+    /// remapped list, or an inline error.</summary>
+    public Task<(ShareCommitResult? Result, string? Error)> CommitPackImportAsync(ShareCommitInput input) =>
+        FetchAsync<ShareCommitResult>(HttpMethod.Post, "share/import/commit", input);
+
     // ---------- tv (player-facing shared display) ----------
 
     /// <summary>Poll what the shared table screen is showing; silent on failure like the other pollers.

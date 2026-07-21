@@ -1,0 +1,178 @@
+@* Import a shareable content pack (issue #111): choose a .zip → the server inspects it (what's inside +
+   the light keys that need remapping) → the GM maps each source light to one of their bulbs (or skips it) →
+   commit recreates everything as fresh copies. Modeled on PdfPagePicker — a fixed-inset overlay (the app has
+   no modal primitive), the "upload → interactive step → confirm" shape. *@
+@inject ApiClient Api
+@inject UiState Ui
+@inject Localizer L
+
+<div class="imgsearch-overlay" role="dialog" aria-modal="true" aria-label="@L["share.import.title"]">
+    <div class="imgsearch-head">
+        <h2 class="imgsearch-title">@L["share.import.title"]</h2>
+        <button type="button" class="btn btn--icon imgsearch-close" @onclick="Close"
+                disabled="@Busy" aria-label="@L["share.import.close"]">
+            <Icon Name="close" />
+        </button>
+    </div>
+
+    <div class="imgsearch-body">
+        @if (_inspect is null)
+        {
+            <div class="pdfpick-choose">
+                <label class="btn btn--primary pdfpick-upload@(_uploading ? " is-busy" : "")">
+                    <InputFile OnChange="OnFileChosen" accept=".zip,application/zip" disabled="@_uploading" />
+                    <Icon Name="import" /> @(_uploading ? L["share.import.uploading"] : L["share.import.choose"])
+                </label>
+                <p class="imgsearch-note">@L["share.import.hint"]</p>
+            </div>
+        }
+        else
+        {
+            <div class="share-summary">
+                <p class="share-contains">@L["share.import.contains"] <strong>@ContainsLine()</strong></p>
+                @if (_inspect.Collisions.Count > 0)
+                {
+                    <p class="share-note">@L.Format("share.import.collisionsNote", _inspect.Collisions.Count)</p>
+                }
+                @if (_inspect.MediaMissing.Count > 0)
+                {
+                    <p class="share-note share-warn">@L.Format("share.import.mediaMissingNote", _inspect.MediaMissing.Count)</p>
+                }
+            </div>
+
+            @if (_inspect.LightKeys.Count > 0)
+            {
+                <div class="share-lights">
+                    <h3 class="share-subhead">@L["share.import.lightsTitle"]</h3>
+                    <p class="imgsearch-note">@L["share.import.lightsHint"]</p>
+                    @if (_lights.Count == 0)
+                    {
+                        <p class="share-note share-warn">@L["share.import.noLights"]</p>
+                    }
+                    @foreach (var lk in _inspect.LightKeys)
+                    {
+                        var key = lk.Key;
+                        <div class="share-lightrow">
+                            <div class="share-lightkey">
+                                <span class="share-lightname">@key</span>
+                                @if (lk.Sources.Count > 0)
+                                {
+                                    <span class="share-lightsrc">@L.Format("share.import.usedBy", string.Join(", ", lk.Sources))</span>
+                                }
+                            </div>
+                            <select class="share-lightsel" value="@(_targets.GetValueOrDefault(key) ?? "")"
+                                    @onchange="e => SetTarget(key, e.Value?.ToString())">
+                                <option value="">@L["share.import.lightSkip"]</option>
+                                @foreach (var light in _lights)
+                                {
+                                    <option value="@light.Key">@light.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    @if (_inspect is not null)
+    {
+        <div class="imgsearch-foot pdfpick-foot">
+            <button type="button" class="btn btn--primary" @onclick="CommitAsync" disabled="@_committing">
+                @(_committing ? L["share.import.importing"] : L["share.import.button"])
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    // Fires when the pack was imported (the host list should refresh); then the overlay closes.
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    // Fires when the overlay should close (close button, or after a successful import).
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private ShareInspectResult? _inspect;
+    private List<RegisteredLightInfo> _lights = [];
+    private readonly Dictionary<string, string?> _targets = new(StringComparer.OrdinalIgnoreCase);
+    private bool _uploading;
+    private bool _committing;
+
+    private bool Busy => _uploading || _committing;
+
+    // Cache the key so the multipart upload carries it, and load the bulbs for the remap dropdowns.
+    protected override async Task OnInitializedAsync()
+    {
+        await Api.GetApiKeyAsync();
+        _lights = await Api.GetRegisteredLightsAsync();
+    }
+
+    private async Task OnFileChosen(InputFileChangeEventArgs e)
+    {
+        if (_uploading || e.FileCount == 0) return;
+        var file = e.File;
+        if (file.Size > 100L * 1024 * 1024)
+        {
+            Ui.ReportError(L.Format("share.import.tooLarge", 100));
+            return;
+        }
+        _uploading = true;
+        try
+        {
+            var (result, error) = await Api.InspectPackAsync(file);
+            if (result is not null)
+            {
+                _inspect = result;
+                _targets.Clear();
+                foreach (var lk in result.LightKeys)
+                    _targets[lk.Key] = null; // default: skip
+            }
+            else
+            {
+                Ui.ReportError(error ?? L["share.import.failed"]);
+            }
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private void SetTarget(string sourceKey, string? target) =>
+        _targets[sourceKey] = string.IsNullOrEmpty(target) ? null : target;
+
+    private async Task CommitAsync()
+    {
+        if (_committing || _inspect is null) return;
+        _committing = true;
+        try
+        {
+            var input = new ShareCommitInput(_inspect.TempId, new Dictionary<string, string?>(_targets), null);
+            var (result, error) = await Api.CommitPackImportAsync(input);
+            if (result is not null)
+            {
+                Ui.ReportOk(L.Format("share.import.done", result.Created.Values.Sum(v => v.Count)));
+                await OnImported.InvokeAsync();
+                await OnClose.InvokeAsync();
+            }
+            else
+            {
+                Ui.ReportError(error ?? L["share.import.failed"]);
+                _committing = false; // keep the overlay open so the user can retry
+            }
+        }
+        catch (Exception ex)
+        {
+            Ui.ReportError(ex.Message);
+            _committing = false;
+        }
+    }
+
+    // A short "2 scene, 3 sound" line from the per-kind counts (kind slugs — functional, not chrome).
+    private string ContainsLine() =>
+        _inspect is null || _inspect.Counts.Count == 0
+            ? "—"
+            : string.Join(", ", _inspect.Counts.Where(c => c.Value > 0).Select(c => $"{c.Value} {c.Key}"));
+
+    private Task Close() => Busy ? Task.CompletedTask : OnClose.InvokeAsync();
+}

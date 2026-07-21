@@ -1,0 +1,46 @@
+@* A reusable "Import" trigger that hosts the SharePackImporter overlay (issue #111). Two variants so it drops
+   into either a scene-grid (as a ghost card, beside "New") or a .btn-row (as a plain button). Fires OnImported
+   after a successful import so the host list refreshes. *@
+@inject Localizer L
+
+@if (Variant == "card")
+{
+    <button class="@(CardClass ?? "scene-card ghost")" @onclick="() => _show = true">
+        <span class="scene-emoji"><Icon Name="import" /></span>
+        <span class="scene-name">@L["share.import.open"]</span>
+    </button>
+}
+else
+{
+    <button type="button" class="btn @Class" @onclick="() => _show = true">
+        <Icon Name="import" /> @L["share.import.open"]
+    </button>
+}
+
+@if (_show)
+{
+    <SharePackImporter OnImported="Imported" OnClose="() => _show = false" />
+}
+
+@code {
+    /// <summary>"card" (a grid ghost card) or "button" (a plain .btn, styled via <see cref="Class"/>).</summary>
+    [Parameter] public string Variant { get; set; } = "card";
+
+    /// <summary>Card-variant classes (default "scene-card ghost"); pass e.g. "board-card board-card--new" to
+    /// match a grid that isn't the scene grid.</summary>
+    [Parameter] public string? CardClass { get; set; }
+
+    /// <summary>Extra classes for the "button" variant (e.g. "btn--ghost").</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Fires after a pack is imported — the host should reload its list.</summary>
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private bool _show;
+
+    private async Task Imported()
+    {
+        _show = false;
+        await OnImported.InvokeAsync();
+    }
+}

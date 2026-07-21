@@ -1,0 +1,57 @@
+/* ============================================================
+   Shareable content packs (issue #111): the per-card "Share"
+   corner affordance + the import overlay's content. The overlay
+   frame reuses the .imgsearch-* / .pdfpick-* classes (see
+   _imgsearch.scss / _pdfpick.scss); only the summary + the
+   light-map rows are new here.
+   ============================================================ */
+
+/* Corner affordance: share top-left (edit is bottom-right, stop is top-right). */
+.scene-card .card-share {
+  position: absolute;
+  top: 0; left: 0;
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  font-size: 17px;
+  color: var(--text-muted);
+  border-bottom-right-radius: var(--r-md);
+  z-index: 4;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.scene-card .card-share:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+.scene-card .card-share:active { transform: scale(.9); }
+
+/* ---------- import overlay content ---------- */
+.share-summary { margin-bottom: var(--s-4); }
+.share-contains { font: var(--text-md); color: var(--text); }
+.share-note { font: var(--text-sm); color: var(--text-muted); margin-top: var(--s-1); }
+.share-note.share-warn { color: var(--warning); }
+
+.share-subhead { font: var(--text-md); margin: var(--s-4) 0 var(--s-1); color: var(--text); }
+.share-lights { display: flex; flex-direction: column; gap: var(--s-2); }
+.share-lightrow {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: rgba(255, 255, 255, .04);
+  border-radius: var(--r-md);
+}
+.share-lightkey { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.share-lightname { font: var(--text-md); color: var(--text); }
+.share-lightsrc {
+  font: var(--text-sm); color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.share-lightsel { min-width: 45%; }
+
+/* ---------- per-row Share affordance for the Effects (KRow) list ---------- */
+.krow-wrap { position: relative; }
+.krow-wrap .krow { padding-right: 52px; }
+.krow-share {
+  position: absolute; top: 0; right: 0; height: 100%; width: 48px;
+  display: grid; place-items: center;
+  border: 0; background: none; color: var(--text-muted);
+  font-size: 17px; cursor: pointer; z-index: 2; border-radius: var(--r-md);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.krow-share:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+.krow-share:active { transform: scale(.9); }

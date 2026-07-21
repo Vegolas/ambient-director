@@ -11,6 +11,7 @@ using AmbientDirector.Api.Logging;
 using AmbientDirector.Api.Services;
 using AmbientDirector.Api.Services.Audio;
 using AmbientDirector.Api.Services.Images;
+using AmbientDirector.Api.Services.Sharing;
 
 // The installable Windows build (issue #75) is a self-contained single-file exe, which reports an EMPTY
 // entry-assembly location; `dotnet run` and the test host report a real .dll path. That distinguishes "the
@@ -168,6 +169,25 @@ builder.Services.AddSingleton<BoardStore>();
 builder.Services.AddSingleton<PartyStore>();
 builder.Services.AddSingleton<EncounterStore>();
 builder.Services.AddSingleton<LightFxStore>();
+
+// Shareable content packs (issue #111): a per-kind share descriptor for every content type, a registry over
+// them, and the export/import services. Export zips a root entity + its dependency closure + media; import is
+// two-phase (inspect → commit) with a light-key remap step. All singletons (every dependency is a singleton).
+builder.Services.AddSingleton<IShareDescriptor, SceneShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, EventShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, LightFxShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, SoundShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, ScreenShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, BoardShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, PartyMemberShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, EnemyShareDescriptor>();
+builder.Services.AddSingleton<IShareDescriptor, EncounterShareDescriptor>();
+builder.Services.AddSingleton<ShareRegistry>();
+builder.Services.AddSingleton<ShareExporter>();
+builder.Services.AddSingleton(sp => new ShareImporter(imagesPath,
+    sp.GetRequiredService<ShareRegistry>(),
+    sp.GetRequiredService<ImageFileStorage>(),
+    sp.GetRequiredService<SoundFileStorage>()));
 
 // UI translations: JSON files on disk (community-editable), with English embedded as the fallback.
 builder.Services.AddSingleton(sp => new LocaleService(localesPath, sp.GetRequiredService<ILogger<LocaleService>>()));
@@ -347,6 +367,7 @@ app.Use(async (context, next) =>
          path.StartsWithSegments("/setup") || path.StartsWithSegments("/logs") ||
          path.StartsWithSegments("/diagnostics") || path.StartsWithSegments("/mcp") ||
          path.StartsWithSegments("/assistant") || path.StartsWithSegments("/i18n") ||
+         path.StartsWithSegments("/share") ||
          // Player-facing display: only the GM push commands are gated. "/tv/show" also covers
          // "/tv/show/recent" (the history list). "/tv" (the SPA page), "/tv/state" and
          // "/tv/content/current" stay OPEN so a shared table screen never needs the admin key — the
@@ -383,6 +404,7 @@ app.MapDiagnosticsEndpoints();
 app.MapAssistantEndpoints();
 app.MapLocaleEndpoints();
 app.MapTvEndpoints();
+app.MapShareEndpoints();
 
 // The in-process MCP server (streamable HTTP) — point Claude Code / Claude Desktop at this.
 app.MapMcp("/mcp");

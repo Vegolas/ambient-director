@@ -20,6 +20,10 @@ public class SoundFileStorage
     /// <summary>Absolute path to a sound's audio file, for the player.</summary>
     public string FullPath(Sound sound) => Path.Combine(_directory, sound.FileName);
 
+    /// <summary>Absolute path for a stored audio file name (for reading it back — e.g. bundling into a share
+    /// pack). Names are store-derived, so there is no traversal guard here (unlike <see cref="ImageFileStorage"/>).</summary>
+    public string FullPathForName(string fileName) => Path.Combine(_directory, fileName);
+
     /// <summary>Persist an uploaded stream as "&lt;id&gt;&lt;ext&gt;" and return the stored file name.</summary>
     public async Task<string> SaveAsync(string id, string extension, Stream content, CancellationToken ct = default)
     {
