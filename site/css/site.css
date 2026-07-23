@@ -457,7 +457,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-block: 40px 48px;
+  padding-block: 40px 18px;
 }
 .footer-left {
   margin: 0;
@@ -473,6 +473,13 @@ h2 {
   margin: 0;
   font: 500 13px/1 var(--font);
   color: var(--text-faint);
+}
+.footer-legal {
+  margin: 0;
+  padding-bottom: 44px;
+  font: 400 11.5px/1.7 var(--font);
+  color: var(--text-faint);
+  max-width: 860px;
 }
 
 /* ---------- Responsive ---------- */
@@ -536,5 +543,6 @@ h2 {
   .gear-grid { grid-template-columns: 1fr; }
   .gear-card-wide { grid-column: auto; }
   .cross-note { flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 18px; }
-  .footer-row { flex-direction: column; text-align: center; padding-block: 32px 36px; }
+  .footer-row { flex-direction: column; text-align: center; padding-block: 32px 14px; }
+  .footer-legal { text-align: center; margin-inline: auto; padding-bottom: 32px; }
 }
