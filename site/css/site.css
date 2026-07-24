@@ -331,6 +331,8 @@ h2 {
   padding: 10px;
 }
 .split-media img { border-radius: 8px; }
+/* Two-up media gallery inside a split (the players' screen: a photo of the board on a real TV + the editor). */
+.split-gallery { display: grid; gap: 10px; }
 .chip-row {
   display: flex;
   gap: 8px;
