@@ -1,3 +1,5 @@
+[A more friendly version](https://vegolas.github.io/ambient-director/).
+
 # 🎲 Ambient Director
 
 A local REST API (C# / .NET 10 Minimal API) **plus a touch control panel (Blazor WASM)** that switches your whole tabletop-RPG mood with one tap — from a Stream Deck, an iPad, or any browser. Lights run **directly over your LAN** (fast, no internet); Spotify is the only cloud dependency, and even that is optional.
