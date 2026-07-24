@@ -76,7 +76,7 @@
           <div class="trio-head">
             <div class="trio-icon trio-icon-lights" aria-hidden="true"><span></span></div>
             <h3>Lights</h3>
-            <p>Philips Hue and Tuya, controlled over your LAN. No cloud, no lag — and animated effects when the scene calls for them.</p>
+            <p>Philips Hue and Tuya, controlled over your LAN — no cloud at game time. Animated effects when the scene calls for them, smoothest on Hue.</p>
           </div>
           <div class="trio-shot">
             <img src="assets/lights.webp" alt="The Lights tab — per-bulb targets, mood colors, brightness and white-light controls" width="1440" height="900" loading="lazy">
@@ -143,30 +143,61 @@
     </div>
   </section>
 
-  <!-- PLAYERS’ SCREEN -->
+  <!-- EVENTS & TIMELINES -->
   <section class="split split-reverse">
     <div class="wrap split-grid">
       <div class="split-media">
-        <img src="assets/board-editor.webp" alt="The board editor — a live 16:9 preview with draggable elements, background colors and image upload" width="1440" height="900" loading="lazy">
+        <img src="assets/event-timeline.webp" alt="The event timeline editor — a Thunderstorm event with rain, wind and thunderclap sound clips shown as waveforms, and lightning flash light clips on parallel tracks" width="1440" height="900" loading="lazy">
       </div>
+      <div class="split-copy">
+        <p class="kicker kicker-marked"><span class="marker" style="background:#ffd21a"></span>Events &amp; timelines</p>
+        <h2>Script the whole storm.</h2>
+        <p class="split-lede">An event can be a single stinger — flash, thunderclap, done — or a whole sequence on a video-editor timeline: sound and light clips placed to the millisecond, fired over the live scene from one tap or one Stream Deck key.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAYERS’ SCREEN -->
+  <section class="split">
+    <div class="wrap split-grid">
       <div class="split-copy">
         <p class="kicker kicker-marked"><span class="marker" style="background:#2ea8ff"></span>The players’ screen</p>
         <h2>Push the story to the big screen.</h2>
         <p class="split-lede">Maps, handouts and live boards — party HP, fear, the enemies they’re facing — on a TV the whole table sees. The screen runs key-free; GM controls stay private on your tablet.</p>
       </div>
+      <div class="split-media">
+        <img src="assets/board-editor.webp" alt="The board editor — a live 16:9 preview with draggable elements, background colors and image upload" width="1440" height="900" loading="lazy">
+      </div>
     </div>
   </section>
 
   <!-- GAME LAYER -->
-  <section class="split">
+  <section class="split split-reverse">
     <div class="wrap split-grid">
+      <div class="split-media">
+        <img src="assets/encounters.webp" alt="The Encounters tab — a prepped fight, ready to run to the TV" width="1440" height="900" loading="lazy">
+      </div>
       <div class="split-copy">
         <p class="kicker kicker-marked"><span class="marker" style="background:#2ecf7a"></span>The game layer</p>
         <h2>The table’s numbers, handled.</h2>
         <p class="split-lede">A party tracker, a bestiary, prepped encounters. Daggerheart and D&amp;D 5e presets built in — take a hit point from the panel or a Stream Deck key.</p>
       </div>
-      <div class="split-media">
-        <img src="assets/encounters.webp" alt="The Encounters tab — a prepped fight, ready to run to the TV" width="1440" height="900" loading="lazy">
+    </div>
+  </section>
+
+  <!-- ASSISTANT & MCP -->
+  <section class="split split-ai">
+    <div class="wrap split-grid">
+      <div class="split-copy">
+        <p class="kicker kicker-marked"><span class="marker" style="background:#8c5cf0"></span>Assistant &amp; MCP</p>
+        <h2>Ask for a mood, get the room.</h2>
+        <p class="split-lede">A built-in assistant — bring your own key from Anthropic, OpenAI or Google — that can run the whole room: scenes, events, sounds, boards, the party tracker. The same tools speak MCP, so Claude Code or Claude Desktop can drive it too, or prep next session’s boards with you. Setup and secrets stay off-limits.</p>
+      </div>
+      <div class="ai-card" role="img" aria-label="Illustration of the assistant chat: the GM asks for a storm mood; the assistant activates the scene, triggers the thunderstorm event and lowers the music volume.">
+        <p class="ai-head"><span class="ai-dot"></span>Assistant<span class="ai-chip">BYOK · Claude / GPT / Gemini</span></p>
+        <p class="ai-msg ai-msg-user">Storm’s rolling in — make the table feel it.</p>
+        <p class="ai-tools"><code>activate_scene · storm</code><code>trigger_event · thunderstorm</code><code>set_music_volume · 40</code></p>
+        <p class="ai-msg ai-msg-bot">Done — lights are a cold blue, rain sits under the music, and the thunder event is ready to fire.</p>
       </div>
     </div>
   </section>
